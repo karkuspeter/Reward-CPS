@@ -1,4 +1,6 @@
 function r = simulateToyCannon(a, s)
+% example
+% simulateToyCannon([.3,0,0,0,0]', 3)
 
 x = 0:.01:12;
 angleNoise = 0; %1/180*pi;
