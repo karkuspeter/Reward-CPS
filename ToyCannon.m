@@ -41,7 +41,7 @@ classdef ToyCannon
           end
       end
       
-      function [r, xres] = Simulate(obj, s, angle, v, noise)
+      function [r, result] = Simulate(obj, s, angle, v, noise)
           % reasonable input: s=3, angle=.3, v = 1;
           if nargin < 5
               noise = obj.angleNoise;
@@ -59,6 +59,7 @@ classdef ToyCannon
           %evaluate
           hillats = obj.HillValue(s);
           r = obj.r_func(angle,v,s,hillats,xres,yres);
+          result = [hillats,xres,yres];
           
           %print
           if(obj.PrintOn)
