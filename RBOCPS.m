@@ -12,8 +12,16 @@ params = struct(...
      'kappa', 1, ...
      'sigma0', 0.2, ...
      'sigmaM0', 0.1, ...
-     'Niter', 50, ...
+     'Algorithm', 'RBOCPS', ...
+     'Niter', 10, ...
      'output_off', 0);
+ 
+if (exist('input_params'))
+    params = ProcessParams(params, input_params);
+end
+
+% isRBOCPS: whether running the proposed reward exploiting version
+isRBOCPS = strcmp(params.Algorithm, 'RBOCPS');
 
 theta_dim = 1;
 s_dim = 1;
@@ -21,9 +29,6 @@ theta_bounds = [0, pi/2-0.2];
 s_bounds = [0, 12];
 bounds = [s_bounds; theta_bounds];
 
-if (exist('input_params'))
-    params = ProcessParams(params, input_params);
-end
 
 toycannon = ToyCannon;
 sim_func = @(a,s)(toycannon.Simulate(s, a, 1));
@@ -32,6 +37,8 @@ sim_nonoise = @(a,s)(toycannon.Simulate(s, a, 1, 0));
 %optional GP parameters
 sigma0 = params.sigma0;
 sigmaF0 = sigma0;
+sigmaM0 = params.sigmaM0 * [theta_bounds(:,2) - theta_bounds(:,1); ...
+    s_bounds(:,2) - s_bounds(:,1)];
 sigmaM0star = params.sigmaM0*[theta_bounds(:,2) - theta_bounds(:,1)];
 
 % compute optimal policy
@@ -49,51 +56,71 @@ for iter=1:params.Niter
     
     % get prediction for context
     if(iter > 1)
-        % map data
-        Dstar = MapToContext(Dfull, context, toycannon.r_func);
-        
-        gprMdl = fitrgp(Dstar(:,1:end-1),Dstar(:,end),'Basis','constant','FitMethod','exact',...
-            'PredictMethod','exact','KernelFunction','ardsquaredexponential',...
-            'KernelParameters',[sigmaM0star;sigmaF0], 'Sigma',sigma0,'Standardize',1);
-        
-        theta = BOCPSpolicy(gprMdl, [], params.kappa, theta_bounds);
+        if isRBOCPS
+            % map data
+            Dstar = MapToContext(Dfull, context, toycannon.r_func);
+
+            gprMdl = fitrgp(Dstar(:,1:end-1),Dstar(:,end),'Basis','constant','FitMethod','exact',...
+                'PredictMethod','exact','KernelFunction','ardsquaredexponential',...
+                'KernelParameters',[sigmaM0star;sigmaF0], 'Sigma',sigma0,'Standardize',1);
+            
+            theta = BOCPSpolicy(gprMdl, [], params.kappa, theta_bounds);
+        else
+            % map data to have [context, theta, r]
+            D = [Dfull(:,3), Dfull(:,1), Dfull(:,end)];
+            
+            % train GP
+            gprMdl = fitrgp(D(:,1:end-1),D(:,end),'Basis','constant','FitMethod','exact',...
+                'PredictMethod','exact','KernelFunction','ardsquaredexponential',...
+                'KernelParameters',[sigmaM0;sigmaF0], 'Sigma',sigma0,'Standardize',1);
+            
+            
+            theta = BOCPSpolicy(gprMdl, context, params.kappa, theta_bounds);
+        end
         
     else
         theta = ((theta_bounds(:,2)-theta_bounds(:,1)).*rand(size(theta_bounds,1),1) + theta_bounds(:,1))';
     end
     
-    % get sample for simulator
+    % get sample from simulator
     [r, result] = sim_func(theta, context);
     
     % add to data matrix
-    % D = [D; [context, theta, r]];
     Dfull = [Dfull; [theta, 1, context, result, r]];
     
     if (iter < 2)
         continue;
     end
-
+    
     % evaluate offline performance
     context_vec = linspace(s_bounds(:,1), s_bounds(:,2), 100)';
+    
     theta_space = linspace(theta_bounds(:,1),theta_bounds(:,2), 100)';
     ypred = []; ystd = []; acq_val=[];
     for i=1:size(context_vec,1)
-        Dstar = MapToContext(Dfull, context_vec(i,:), toycannon.r_func);
-        
-        gprMdl = fitrgp(Dstar(:,1:end-1),Dstar(:,end),'Basis','constant','FitMethod','exact',...
-            'PredictMethod','exact','KernelFunction','ardsquaredexponential',...
-            'KernelParameters',[sigmaM0star;sigmaF0], 'Sigma',sigma0,'Standardize',1);
-        
-        theta_vec(i,:) = BOCPSpolicy(gprMdl, [], 0, theta_bounds);
+        if isRBOCPS
+            Dstar = MapToContext(Dfull, context_vec(i,:), toycannon.r_func);
+            
+            gprMdl = fitrgp(Dstar(:,1:end-1),Dstar(:,end),'Basis','constant','FitMethod','exact',...
+                'PredictMethod','exact','KernelFunction','ardsquaredexponential',...
+                'KernelParameters',[sigmaM0star;sigmaF0], 'Sigma',sigma0,'Standardize',1);
+            
+            theta_vec(i,:) = BOCPSpolicy(gprMdl, [], 0, theta_bounds);
+            pred_space = theta_space;
+        else           
+            theta_vec(i,:) = BOCPSpolicy(gprMdl, context_vec(i,:), 0, theta_bounds);  
+            pred_space = [context_vec(i,:)*ones(size(theta_space)), theta_space];
+        end
         r_vec(i,:) = sim_nonoise(theta_vec(i,:), context_vec(i,:));
+        [newypred, newystd] = predict(gprMdl, pred_space);
         
-        [newypred, newystd] = predict(gprMdl, theta_space);
-
         ypred = [ypred; newypred];
         ystd = [ystd; newystd];
-        acq_val = [acq_val; -acq_func(gprMdl, theta_space, params.kappa)];
+        acq_val = [acq_val; -acq_func(gprMdl, pred_space, params.kappa)];
     end
+    
     r_mean(iter) = mean(r_vec);
+    
     
     if params.output_off
         continue;
