@@ -1,21 +1,32 @@
-function [ r_mean ] = BOCPS( input_args )
+function [ r_mean ] = BOCPS( input_params )
 %Implements BO-CPS
 %   Detailed explanation goes here
-kappa = 1;
+
+params = struct(...
+     'kappa', 1, ...
+     'sigma0', 0.2, ...
+     'sigmaM0', 0.1, ...
+     'Niter', 50, ...
+     'output_off', 0);
+ 
 theta_dim = 1;
 s_dim = 1;
 theta_bounds = [0, pi/2-0.2];
 s_bounds = [0, 12];
 bounds = [s_bounds; theta_bounds];
-    
+
+if (exist('input_params'))
+    params = ProcessParams(params, input_params);
+end
+
 toycannon = ToyCannon;
 sim_func = @(a,s)(toycannon.Simulate(s, a, 1));
 sim_nonoise = @(a,s)(toycannon.Simulate(s, a, 1, 0));
 
 %optional GP parameters
-sigma0 = 0.2;
+sigma0 = params.sigma0;
 sigmaF0 = sigma0;
-sigmaM0 = 0.1*[theta_bounds(:,2) - theta_bounds(:,1); ...
+sigmaM0 = params.sigmaM0 * [theta_bounds(:,2) - theta_bounds(:,1); ...
     s_bounds(:,2) - s_bounds(:,1)];
 
 % compute optimal policy
@@ -25,17 +36,16 @@ y = arrayfun(sim_nonoise, x2, x1)';
 [r_opt, theta_I] = max(y, [], 2);
 theta_opt = x2(theta_I);
 
-
 D = [];
 
 
-for iter=1:50
+for iter=1:params.Niter
     % sample random context
     context = ((s_bounds(:,2)-s_bounds(:,1)).*rand(size(s_bounds,1),1) + s_bounds(:,1))';
     
     % get prediction for context
     if(iter > 1)
-        theta = BOCPSpolicy(gprMdl, context, kappa, theta_bounds);
+        theta = BOCPSpolicy(gprMdl, context, params.kappa, theta_bounds);
     else
         theta = ((theta_bounds(:,2)-theta_bounds(:,1)).*rand(size(theta_bounds,1),1) + theta_bounds(:,1))';
     end
@@ -58,6 +68,10 @@ for iter=1:50
         r_vec(i,:) = sim_nonoise(theta_vec(i,:), context_vec(i,:));
     end
     r_mean(iter) = mean(r_vec);
+    
+    if params.output_off
+        continue
+    end
     
     % show environment and performance
     [x1, x2] = meshgrid(linspace(bounds(1,1),bounds(1,2), 100), ...
@@ -100,7 +114,7 @@ for iter=1:50
     view(0,90)
     hold off
     
-    acq_val = -acq_func(gprMdl, Xplot, kappa);
+    acq_val = -acq_func(gprMdl, Xplot, params.kappa);
     Yplot = reshape(acq_val, size(x1,1), []);
     
     figure(4);
