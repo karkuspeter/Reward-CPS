@@ -171,12 +171,16 @@ while perror > tol
    else
       %-- Have we exceeded the maxits?
       if itctr >= maxits
-         disp('Exceeded max iterations. Increase maxits')
+         if showits == 1
+            disp('Exceeded max iterations. Increase maxits')
+         end
          done = 1;
       end
       %-- Have we exceeded the maxevals?
       if fcncounter > maxevals
-         disp('Exceeded max fcn evals. Increase maxevals')
+         if showits == 1
+            disp('Exceeded max fcn evals. Increase maxevals')
+         end
          done = 1;
       end
       if done == 1
@@ -185,7 +189,9 @@ while perror > tol
    end
    if max(max(lengths)) >= maxdeep
       %-- We've exceeded the max depth
-      disp('Exceeded Max depth. Increse maxdeep')
+      if showits == 1
+        disp('Exceeded Max depth. Increse maxdeep')
+      end
       perror = -1;
    end
    if g_nargout == 3
