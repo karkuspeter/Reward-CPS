@@ -4,7 +4,7 @@
 % we could sample according to acqusition function, not just choose
 % max? maybe doesnt make sense.. 
 
-function [ r_mean ] = RBOCPS( input_params )
+function [ stats, linstat, params ] = RBOCPS( input_params )
 %Implements BO-CPS
 %   Detailed explanation goes here
 
@@ -12,7 +12,7 @@ params = struct(...
      'kappa', 1, ...
      'sigma0', 0.2, ...
      'sigmaM0', 0.1, ...
-     'Algorithm', 'RBOCPS', ...
+     'Algorithm', 2, ...   % 1 BOCPS, 2 RBOCPS
      'Niter', 10, ...
      'output_off', 0);
  
@@ -21,7 +21,7 @@ if (exist('input_params'))
 end
 
 % isRBOCPS: whether running the proposed reward exploiting version
-isRBOCPS = strcmp(params.Algorithm, 'RBOCPS');
+isRBOCPS = (params.Algorithm == 2);
 
 theta_dim = 1;
 s_dim = 1;
@@ -49,6 +49,10 @@ y = arrayfun(sim_nonoise, x2, x1)';
 theta_opt = x2(theta_I);
 
 Dfull = [];
+
+stats = struct();
+linstat = struct('R_mean', [], 's', [], 'theta', [], ...
+                 'theta_s', [], 'R_s', [], 'R_opt', []);
 
 for iter=1:params.Niter
     % sample random context
@@ -88,6 +92,12 @@ for iter=1:params.Niter
     % add to data matrix
     Dfull = [Dfull; [theta, 1, context, result, r]];
     
+    % add to stats
+    linstat.s(iter,:) = context;
+    linstat.theta(iter,:) = theta;
+    linstat.r(iter,:) = r;
+    linstat.R_opt(iter,:) = mean(r_opt); %this is always the same
+    
     if (iter < 2)
         continue;
     end
@@ -119,8 +129,9 @@ for iter=1:params.Niter
         acq_val = [acq_val; -acq_func(gprMdl, pred_space, params.kappa)];
     end
     
-    r_mean(iter) = mean(r_vec);
-    
+    linstat.theta_s(iter,:) = theta_vec';
+    linstat.R_s(iter,:) = r_vec';
+    linstat.R_mean(iter,:) = mean(r_vec);
     
     if params.output_off
         continue;
@@ -183,8 +194,11 @@ for iter=1:params.Niter
     %pause;
 end
 
-figure
-plot(1:length(r_mean), r_mean, 1:length(r_mean), mean(r_opt)*ones(size(r_mean)))
+if ~params.output_off
+    figure
+    plot(1:length(linstat.R_mean), linstat.R_mean, ...
+         1:length(linstat.R_mean), mean(r_opt)*ones(size(linstat.R_mean)))
+end
 
 end
 
