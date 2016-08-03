@@ -12,7 +12,7 @@ params = struct(...
      'kappa', 1, ...
      'sigma0', 0.2, ...
      'sigmaM0', 0.1, ...
-     'Algorithm', 2, ...   % 1 BOCPS, 2 RBOCPS
+     'Algorithm', 2, ...   % 1 BOCPS, 2 RBOCPS, 3 ACES, 4 RACES
      'Niter', 10, ...
      'EvalModulo', 1, ...
      'output_off', 0);
@@ -22,7 +22,8 @@ if (exist('input_params'))
 end
 
 % isRBOCPS: whether running the proposed reward exploiting version
-isRBOCPS = (params.Algorithm == 2);
+isRBOCPS = (params.Algorithm == 2 || params.Algorithm == 4);
+isACES = (params.Algorithm == 3 || params.Algorithm == 4);
 
 theta_dim = 1;
 s_dim = 1;
@@ -69,7 +70,7 @@ for iter=1:params.Niter
                 'PredictMethod','exact','KernelFunction','ardsquaredexponential',...
                 'KernelParameters',[sigmaM0star;sigmaF0], 'Sigma',sigma0,'Standardize',1);
             
-            theta = BOCPSpolicy(gprMdl, [], params.kappa, theta_bounds);
+            theta = BOCPSpolicy(gprMdl, [], params.kappa, theta_bounds, isACES);
         else
             % map data to have [context, theta, r]
             D = [Dfull(:,3), Dfull(:,1), Dfull(:,end)];
@@ -80,7 +81,7 @@ for iter=1:params.Niter
                 'KernelParameters',[sigmaM0;sigmaF0], 'Sigma',sigma0,'Standardize',1);
             
             
-            theta = BOCPSpolicy(gprMdl, context, params.kappa, theta_bounds);
+            theta = BOCPSpolicy(gprMdl, context, params.kappa, theta_bounds, isACES);
         end
         
     else
@@ -119,10 +120,10 @@ for iter=1:params.Niter
                 'PredictMethod','exact','KernelFunction','ardsquaredexponential',...
                 'KernelParameters',[sigmaM0star;sigmaF0], 'Sigma',sigma0,'Standardize',1);
             
-            theta_vec(i,:) = BOCPSpolicy(gprMdl, [], 0, theta_bounds);
+            theta_vec(i,:) = BOCPSpolicy(gprMdl, [], 0, theta_bounds, false);
             pred_space = theta_space;
         else           
-            theta_vec(i,:) = BOCPSpolicy(gprMdl, context_vec(i,:), 0, theta_bounds);  
+            theta_vec(i,:) = BOCPSpolicy(gprMdl, context_vec(i,:), 0, theta_bounds, false);  
             pred_space = [context_vec(i,:)*ones(size(theta_space)), theta_space];
         end
         r_vec(i,:) = sim_nonoise(theta_vec(i,:), context_vec(i,:));
