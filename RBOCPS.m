@@ -14,6 +14,7 @@ params = struct(...
      'sigmaM0', 0.1, ...
      'Algorithm', 2, ...   % 1 BOCPS, 2 RBOCPS
      'Niter', 10, ...
+     'EvalModulo', 1, ...
      'output_off', 0);
  
 if (exist('input_params'))
@@ -59,7 +60,7 @@ for iter=1:params.Niter
     context = ((s_bounds(:,2)-s_bounds(:,1)).*rand(size(s_bounds,1),1) + s_bounds(:,1))';
     
     % get prediction for context
-    if(iter > 1)
+    if(iter > 3)
         if isRBOCPS
             % map data
             Dstar = MapToContext(Dfull, context, toycannon.r_func);
@@ -98,11 +99,14 @@ for iter=1:params.Niter
     linstat.r(iter,:) = r;
     linstat.R_opt(iter,:) = mean(r_opt); %this is always the same
     
-    if (iter < 2)
+    if (iter < 4 || mod(iter, params.EvalModulo) > 0)
         continue;
     end
     
     % evaluate offline performance
+    if (~params.output_off)
+        fprintf('Eval iteration %d \n', iter);
+    end
     context_vec = linspace(s_bounds(:,1), s_bounds(:,2), 100)';
     
     theta_space = linspace(theta_bounds(:,1),theta_bounds(:,2), 100)';
