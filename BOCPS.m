@@ -114,7 +114,7 @@ for iter=1:params.Niter
     view(0,90)
     hold off
     
-    acq_val = -acq_func(gprMdl, Xplot, params.kappa);
+    acq_val = -acq_func_bo(gprMdl, Xplot, params.kappa);
     Yplot = reshape(acq_val, size(x1,1), []);
     
     figure(4);

@@ -131,7 +131,7 @@ for iter=1:params.Niter
         
         ypred = [ypred; newypred];
         ystd = [ystd; newystd];
-        acq_val = [acq_val; -acq_func(gprMdl, pred_space, params)];
+        acq_val = [acq_val; -acq_func_bo(gprMdl, pred_space, params)];
     end
     
     linstat.theta_s(iter,:) = theta_vec';

@@ -114,7 +114,7 @@ for iter=1:50
 
         ypred = [ypred; newypred];
         ystd = [ystd; newystd];
-        acq_val = [acq_val; -acq_func(gprMdl, theta_space, kappa)];
+        acq_val = [acq_val; -acq_func_bo(gprMdl, theta_space, kappa)];
     end
     r_mean(iter) = mean(r_vec);
     
