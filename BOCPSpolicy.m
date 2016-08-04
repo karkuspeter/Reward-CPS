@@ -1,8 +1,8 @@
-function [ theta ] = BOCPSpolicy( gprMdl, context, kappa, theta_bounds, use_cmaes )
+function [ theta ] = BOCPSpolicy( gprMdl, context, params, theta_bounds, use_cmaes )
 %UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
 
-    f = @(x)(acq_func(gprMdl, [context, x'], kappa));
+    f = @(x)(acq_func(gprMdl, [context, x'], params.kappa));
     
     if (use_cmaes)
         opts = cmaes('defaults');

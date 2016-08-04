@@ -70,7 +70,7 @@ for iter=1:params.Niter
                 'PredictMethod','exact','KernelFunction','ardsquaredexponential',...
                 'KernelParameters',[sigmaM0star;sigmaF0], 'Sigma',sigma0,'Standardize',1);
             
-            theta = BOCPSpolicy(gprMdl, [], params.kappa, theta_bounds, isACES);
+            theta = BOCPSpolicy(gprMdl, [], params, theta_bounds, isACES);
         else
             % map data to have [context, theta, r]
             D = [Dfull(:,3), Dfull(:,1), Dfull(:,end)];
@@ -81,7 +81,7 @@ for iter=1:params.Niter
                 'KernelParameters',[sigmaM0;sigmaF0], 'Sigma',sigma0,'Standardize',1);
             
             
-            theta = BOCPSpolicy(gprMdl, context, params.kappa, theta_bounds, isACES);
+            theta = BOCPSpolicy(gprMdl, context, params, theta_bounds, isACES);
         end
         
     else
@@ -131,7 +131,7 @@ for iter=1:params.Niter
         
         ypred = [ypred; newypred];
         ystd = [ystd; newystd];
-        acq_val = [acq_val; -acq_func(gprMdl, pred_space, params.kappa)];
+        acq_val = [acq_val; -acq_func(gprMdl, pred_space, params)];
     end
     
     linstat.theta_s(iter,:) = theta_vec';
