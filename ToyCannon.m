@@ -2,6 +2,8 @@ classdef ToyCannon
     % Class for toy cannon problem
     %   2D cannon with random hills
     
+    %TODO dont return hills.. and no need for reward function
+    
     properties
         angleNoise
         s_bounds

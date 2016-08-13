@@ -33,9 +33,11 @@ function [ theta ] = BOCPSpolicy( gprMdl, context, params, theta_bounds, use_cma
     % refine by BFGS
     [xatmin2, minval2] = fminunc(f, xatmin1, optimoptions('fminunc','Algorithm','quasi-newton', 'Display', 'none'));
 
-    theta = xatmin2';
+    theta = xatmin2;
     theta = min(theta, theta_bounds(:,2));
     theta = max(theta, theta_bounds(:,1));
+    
+    theta = theta';
 
 end
 
