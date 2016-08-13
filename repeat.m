@@ -20,16 +20,20 @@ for i=1:repeats
     
     [stat, linstat, params] = spider_func(run_struct);
     cumm_rew = mean(linstat.(reward_name));
-rep_stats.Rand_seed = seed_vec;
+
     stat_vec = [stat_vec; stat];
     linstat_vec = [linstat_vec; linstat];
     % params should be same, so we dont store it in vector
     cumm_rew_vec(:,:,end+1) = cumm_rew;
+    
+    if (linstat.R_mean(end) < 2.5)
+        disp('Low performance');
+    end
 end
 
 rep_stats.Rcumm_mean = mean(cumm_rew_vec,3);
 rep_stats.Rcumm_std = std(cumm_rew_vec,0,3);
-
+rep_stats.Rand_seed = seed_vec;
 
 % compue mean and std of everything
 mean_linstat = linstat_vec(1);

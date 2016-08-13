@@ -13,7 +13,7 @@ params = struct(...
      'sigma0', 0.2, ...
      'sigmaM0', 0.1, ...
      'Algorithm', 2, ...   % 1 BOCPS, 2 RBOCPS, 3 ACES, 4 RACES
-     'Niter', 10, ...
+     'Niter', 25, ...
      'EvalModulo', 1, ...
      'output_off', 0);
  
@@ -52,7 +52,7 @@ theta_opt = x2(theta_I);
 
 Dfull = [];
 
-stats = struct();
+stats = struct('last_R_mean', 0);
 linstat = struct('R_mean', [], 's', [], 'theta', [], ...
                  'theta_s', [], 'R_s', [], 'R_opt', [], ...
                  'trial_result', []);
@@ -204,6 +204,8 @@ for iter=1:params.Niter
     drawnow
     %pause;
 end
+
+stats.last_R_mean = linstat.R_mean(end,:);
 
 if ~params.output_off
     figure
