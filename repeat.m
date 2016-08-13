@@ -11,14 +11,16 @@ if (~keep_prev) || ~exist(stat_vec)
     stat_vec = [];
     linstat_vec = [];
     cumm_rew_vec = [];
+    seed_vec = [];
 end
 
 for i=1:repeats
     disp(sprintf('%d / %d', i, repeats));
+    seed_vec = [seed_vec; rng()];
     
     [stat, linstat, params] = spider_func(run_struct);
     cumm_rew = mean(linstat.(reward_name));
-
+rep_stats.Rand_seed = seed_vec;
     stat_vec = [stat_vec; stat];
     linstat_vec = [linstat_vec; linstat];
     % params should be same, so we dont store it in vector

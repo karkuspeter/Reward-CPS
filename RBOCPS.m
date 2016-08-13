@@ -55,10 +55,16 @@ Dfull = [];
 stats = struct();
 linstat = struct('R_mean', [], 's', [], 'theta', [], ...
                  'theta_s', [], 'R_s', [], 'R_opt', []);
+                 'theta_s', [], 'R_s', [], 'R_opt', [], ...
+                 'trial_result', []);
 
 for iter=1:params.Niter
     % sample random context
     context = ((s_bounds(:,2)-s_bounds(:,1)).*rand(size(s_bounds,1),1) + s_bounds(:,1))';
+    
+    %override if reproducing previous results
+    load('results/hyper-12-08-2016-22-19.mat', 'linstat_vec')
+    context = linstat_vec(65).s(iter);
     
     % get prediction for context
     if(iter > 3)
@@ -99,6 +105,7 @@ for iter=1:params.Niter
     linstat.theta(iter,:) = theta;
     linstat.r(iter,:) = r;
     linstat.R_opt(iter,:) = mean(r_opt); %this is always the same
+    linstat.trial_result(iter, :) = result;
     
     if (iter < 4 || mod(iter, params.EvalModulo) > 0)
         continue;
