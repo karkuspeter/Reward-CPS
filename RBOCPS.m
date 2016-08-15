@@ -9,12 +9,12 @@ function [ stats, linstat, params ] = RBOCPS( input_params )
 %   Detailed explanation goes here
 
 params = struct(...
-     'problem', ToyCannon1D1D, ...
+     'problem', ToyCannon1D2D, ...
      'kappa', 1, ...
      'sigma0', 0.2, ...
-     'sigmaM0', 0.1, ...
-     'Algorithm', 2, ...   % 1 BOCPS, 2 RBOCPS, 3 ACES, 4 RACES
-     'Niter', 25, ...
+     'sigmaM0', 1, ...
+     'Algorithm', 1, ...   % 1 BOCPS, 2 RBOCPS, 3 ACES, 4 RACES
+     'Niter', 50, ...
      'EvalModulo', 1, ...
      'EvalAllTheta', 0, ...
      'output_off', 0);
@@ -79,7 +79,7 @@ for iter=1:params.Niter
     %context_t = linstat_vec(65).s(iter);
     
     % get prediction for context
-    if(iter > 3)
+    if(iter > 6)
         if isRBOCPS
             % map data
             Rstar = MapToContext(Dfull, context_t, @problem.r_func);
@@ -127,7 +127,7 @@ for iter=1:params.Niter
     linstat.R_opt(iter,:) = mean(r_opt); %this is always the same
     linstat.outcome(iter, :) = outcome; %rename this
     
-    if (mod(iter, params.EvalModulo) > 0)
+    if (mod(iter, params.EvalModulo) > 0 || iter<7)
         continue;
     end
     
@@ -137,8 +137,12 @@ for iter=1:params.Niter
     end
     context_vec = linspace(sfull_bounds(:,1), sfull_bounds(:,2), 100)';
     
-    if params.EvalAllTheta
+    if theta_dim == 1
         theta_space = linspace(theta_bounds(:,1),theta_bounds(:,2), 100)';
+    elseif theta_dim == 2
+        [t1, t2] = ndgrid(linspace(theta_bounds(1,1),theta_bounds(1,2), 100)', ...
+            linspace(theta_bounds(1,1),theta_bounds(1,2), 100)');
+        theta_space = [t1(:), t2(:)];
     else
         theta_space = [];
     end
@@ -161,60 +165,110 @@ for iter=1:params.Niter
             end
         else           
             theta_vec(i,:) = BOCPSpolicy(gprMdl, context_vec(i,:), struct('kappa',0), theta_bounds, false);  
-            pred_space = [context_vec(i,:)*ones(size(theta_space)), theta_space];
+            pred_space = [context_vec(i,:)*ones(size(theta_space,1),size(context_vec,2)), theta_space];
         end
         r_vec(i,:) = problem.sim_eval_func(context_vec(i,:), theta_vec(i,:));
-        if params.EvalAllTheta
+        %if params.EvalAllTheta
             [newypred, newystd] = predict(gprMdl, pred_space);
             
             ypred = [ypred; newypred];
             ystd = [ystd; newystd];
             acq_val = [acq_val; -acq_func_bo(gprMdl, pred_space, params.kappa)];
-        end
+        %end
     end
     
     linstat.theta_s(iter,:) = theta_vec(:,1)';
     linstat.R_s(iter,:) = r_vec';
     linstat.R_mean(iter,:) = mean(r_vec);
-    
-    if (params.output_off || st_dim + se_dim + theta_dim > 2 || ~EvalAllTheta)
+
+    % show environment and performance
+    if (params.output_off || st_dim + se_dim + theta_dim > 3 || iter < 1)
         continue;
     end
     
-    % show environment and performance
-    [x1, x2] = meshgrid(linspace(bounds(1,1),bounds(1,2), 100), ...
-        linspace(bounds(2,1),bounds(2,2), 100));
-    y = arrayfun(@problem.sim_eval_func, x1, x2);
+    if (theta_dim > 1)
+        context_id = 50;
+        context = context_vec(context_id);
+        % x1_vec is a single value this case (single context)
+        x1_vec = theta_vec(context_id,1);
+        x2_vec = theta_vec(context_id,2);
+
+        [x1, x2] = meshgrid(linspace(theta_bounds(1,1),theta_bounds(1,2), 100), ...
+            linspace(theta_bounds(2,1),theta_bounds(2,2), 100));
+        y = arrayfun(@(t1, t2)(problem.sim_eval_func(context, [t1 t2])), x1, x2);
+        z_vec = r_vec(context_id);
+        
+        [ropt, ind] = max(y);
+        %[ind] = ind2sub([100,100], ind);
+        x1opt_vec = x1(ind);
+        x2opt_vec = x2(ind);
+        zopt_vec = ropt;
+    else
+        
+        [x1, x2] = meshgrid(linspace(bounds(1,1),bounds(1,2), 100), ...
+            linspace(bounds(2,1),bounds(2,2), 100));
+        y = arrayfun(@problem.sim_eval_func, x1, x2);
+        x1_vec = context_vec(:,1);
+        x2_vec = theta_vec(:,1);
+        z_vec = r_vec;
+        x1opt_vec = x1(1,:)';
+        x2opt_vec = theta_opt(:,1);
+        zopt_vec = r_opt;
+    end
+    
     figure(1);
     mesh(x1(1,:)', x2(:,1), y);
     hold on
-    plot3(context_vec, theta_vec, r_vec);
-    plot3(x1(1,:)', theta_opt, r_opt);
+    plot3(x1_vec, x2_vec, z_vec);
+    plot3(x1opt_vec, x2opt_vec, zopt_vec);
     hold off
     xlabel('context');
     ylabel('angle');
+    %zlim([0,5]);
+    %caxis([0,5]);
     view(0,90)
     %legend('Real R values');
     
+    %if (~params.EvalAllTheta)
+    %    drawnow;
+    %    continue;
+    %end
     % show prediction
     %[x1, x2] = meshgrid(linspace(bounds(1,1),bounds(1,2), 100), ...
     %    linspace(bounds(2,1),bounds(2,2), 100));
     %Xplot = reshape(cat(2, x1, x2), [], 2);
     %[ypred, ystd] = predict(gprMdl, Xplot);
-    Yplot = reshape(ypred, size(x1,1), []);
+    if theta_dim == 1
+        Yplot = reshape(ypred, size(x1,1), []);
+    else
+        Yplot = reshape(ypred, size(context_vec,1), 100, []);
+        Yplot = Yplot(context_id, :, :);
+        Yplot = reshape(Yplot, 100, 100);
+    end
     
     figure(2);
     mesh(x1(1,:)', x2(:,1), Yplot);
     hold on
-    scatter3(Dfull.st, Dfull.theta, Dfull.r);
+    if theta_dim == 1
+        scatter3(Dfull.st, Dfull.theta, Dfull.r);
+    else
+        scatter3(Dfull.theta(:,1), Dfull.theta(:,2), Dfull.r);
+    end
     xlabel('context');
     ylabel('angle');
     %legend('Data','GPR predictions');
     view(0,90)
     hold off
     
+    
+    if theta_dim == 1
+        Yplot = reshape(ystd, size(x1,1), []);
+    else
+        Yplot = reshape(ystd, size(context_vec,1), 100, []);
+        Yplot = Yplot(context_id, :, :);
+        Yplot = reshape(Yplot, 100, 100);
+    end
     figure(3);
-    Yplot = reshape(ystd, size(x1,1), []);
     mesh(x1(1,:)', x2(:,1), Yplot);
     xlabel('context');
     ylabel('angle');
@@ -222,12 +276,22 @@ for iter=1:params.Niter
     view(0,90)
     hold off
     
-    Yplot = reshape(acq_val, size(x1,1), []);
+    if theta_dim == 1
+        Yplot = reshape(acq_val, size(x1,1), []);
+    else
+        Yplot = reshape(acq_val, size(context_vec,1), 100, []);
+        Yplot = Yplot(context_id, :, :);
+        Yplot = reshape(Yplot, 100, 100);
+    end
     
     figure(4);
     mesh(x1(1,:)', x2(:,1), Yplot);
     hold on
-    scatter3(Dfull.st, Dfull.theta, Dfull.r);
+    if theta_dim == 1
+        scatter3(Dfull.st, Dfull.theta, Dfull.r);
+    else
+        scatter3(Dfull.theta(:,1), Dfull.theta(:,2), Dfull.r);
+    end
     xlabel('context');
     ylabel('angle');
     %legend('Data','Aquisition function');

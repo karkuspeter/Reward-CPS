@@ -28,10 +28,10 @@ classdef ToyCannon
          single_hill_func = @(x, h, c, scale)(h * exp(-(x-c).^2/scale));
          obj.hill_func = @(x)(sum(single_hill_func(x, obj.hill.h, obj.hill.c, obj.hill.scale)));
 
-         obj.x = obj.s_bounds(1):0.1:obj.s_bounds(2);
+         obj.x = obj.s_bounds(1):0.1:obj.s_bounds(2)*2;
          obj.y = obj.HillValue(obj.x);
          %obj.r_func = @(a,v,s,hillats,xres,yres)(4-sqrt( (xres-s).^2 + (yres - hillats)^2));
-         obj.r_func = @(a,v,s,hillats,xres,yres)(4-sqrt( (xres-s).^2 ) - 0.5*a);
+         obj.r_func = @(a,v,s,hillats,xres,yres)(4-sqrt( (xres-s).^2 ) - 0.5*a - 1*v.^2);
         
          % reward: eucladian distance from target on the hill,
          % +4 to address 0 mean
@@ -71,8 +71,8 @@ classdef ToyCannon
           
           ixLand = find(bsxfun(@lt, yproj, obj.y));  % find all x where yproj < y
           if(length(ixLand) < 2)
-              xres = 10000;
-              yres = 0;
+              xres = obj.x(end);
+              yres = obj.y(end);
           else
               %xres = ixLand(2);
               %yres = yres(2);
