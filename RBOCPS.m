@@ -140,7 +140,7 @@ for iter=1:params.Niter
     linstat.R_opt(iter,:) = mean(r_opt); %this is always the same
     linstat.outcome(iter, :) = outcome; %rename this
     
-    if (mod(iter, params.EvalModulo) > 0 || iter<params.InitialSamples)
+    if (mod(iter, params.EvalModulo) > 0 || iter<=params.InitialSamples)
         continue;
     end
     
