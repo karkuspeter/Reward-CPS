@@ -10,11 +10,15 @@ function [ stats, linstat, params ] = RBOCPS( input_params )
 
 params = struct(...
      'problem', ToyCannon1D2D, ...
-     'kappa', 1, ...
-     'sigma0', 0.2, ...
-     'sigmaM0', 1, ...
-     'Algorithm', 1, ...   % 1 BOCPS, 2 RBOCPS, 3 ACES, 4 RACES
+     'kappa', 10, ...
+     'sigmaM0', 1, ... % lengthscale, how much inputs should be similar in that dim. 
+     ...               % i.e. how far inputs should influence each other
+     ...               % can be single value or vector for each theta dim
+     'sigmaF0', 1,...  % how much inputs are correlated - 
+     'sigma0', 0.1, ... %how noisy my observations are, ...
+     'Algorithm', 2, ...   % 1 BOCPS, 2 RBOCPS, 3 ACES, 4 RACES
      'Niter', 50, ...
+     'InitialSamples', 20, ...
      'EvalModulo', 1, ...
      'EvalAllTheta', 0, ...
      'output_off', 0);
@@ -38,29 +42,34 @@ theta_dim = size(theta_bounds,1);
 st_dim = size(st_bounds,1);
 se_dim = size(se_bounds,1);
 %TODO simple BOCPS should be to move st bounds to se bounds and thats all
-
-%optional GP parameters
-sigma0 = params.sigma0;
-sigmaF0 = sigma0;
-sigmaM0 = params.sigmaM0 * [theta_bounds(:,2) - theta_bounds(:,1)];
-sigmaM0star = sigmaM0;
-if st_dim
-    sigmaM0 = [sigmaM0; st_bounds(:,2) - st_bounds(:,1)];
+             
+% convert length scales
+if isRBOCPS
+    gp_dim = se_dim+theta_dim;
+else
+    gp_dim = st_dim+se_dim+theta_dim;
 end
-if se_dim
-    sigmaM0 = [sigmaM0; se_bounds(:,2) - se_bounds(:,1)];
-    sigmaM0star = [sigmaM0star; se_bounds(:,2) - se_bounds(:,1)];
+if length(params.sigmaM0) == 1
+    
+    params.sigmaM0 = params.sigmaM0 * ones(gp_dim, 1);
+elseif length(params.sigmaM0) ~= gp_dim
+    disp('sigmaM0 vector length mismatch');
+    return;
 end
 
+% optimal values
 [theta_opt, r_opt] = problem.optimal_values(100);
 
+
+%% main iter
+    
 Dfull = struct('st', [], 'se', [], 'theta', [], 'outcome', [], 'r', []);
 
 stats = struct('last_R_mean', 0);
 linstat = struct('R_mean', [], 'st', [], 'se', [], 'theta', [], ...
                  'theta_s', [], 'R_s', [], 'R_opt', [], ...
                  'outcome', []);
-
+             
 for iter=1:params.Niter
     % sample random context
     if st_dim
@@ -79,7 +88,7 @@ for iter=1:params.Niter
     %context_t = linstat_vec(65).s(iter);
     
     % get prediction for context
-    if(iter > 6)
+    if(iter > params.InitialSamples)
         if isRBOCPS
             % map data
             Rstar = MapToContext(Dfull, context_t, @problem.r_func);
@@ -88,7 +97,9 @@ for iter=1:params.Niter
             gprMdl = fitrgp(D, Rstar, ...
                 'Basis','constant','FitMethod','exact',...
                 'PredictMethod','exact','KernelFunction','ardsquaredexponential',...
-                'KernelParameters',[sigmaM0star;sigmaF0], 'Sigma',sigma0,'Standardize',1);
+                'KernelParameters',[params.sigmaM0; params.sigmaF0],...
+                'Sigma',params.sigma0, ...
+                'Standardize',1);
             
             theta = BOCPSpolicy(gprMdl, context_e, params, theta_bounds, isACES);
         else
@@ -99,7 +110,9 @@ for iter=1:params.Niter
             gprMdl = fitrgp(D,Dfull.r, ...
                 'Basis','constant','FitMethod','exact',...
                 'PredictMethod','exact','KernelFunction','ardsquaredexponential',...
-                'KernelParameters',[sigmaM0;sigmaF0], 'Sigma',sigma0,'Standardize',1);
+                'KernelParameters',[params.sigmaM0; params.sigmaF0],...
+                'Sigma',params.sigma0, ...
+                'Standardize',1);
             
             
             theta = BOCPSpolicy(gprMdl, [context_t, context_e], params, theta_bounds, isACES);
@@ -127,7 +140,7 @@ for iter=1:params.Niter
     linstat.R_opt(iter,:) = mean(r_opt); %this is always the same
     linstat.outcome(iter, :) = outcome; %rename this
     
-    if (mod(iter, params.EvalModulo) > 0 || iter<7)
+    if (mod(iter, params.EvalModulo) > 0 || iter<params.InitialSamples)
         continue;
     end
     
@@ -141,7 +154,7 @@ for iter=1:params.Niter
         theta_space = linspace(theta_bounds(:,1),theta_bounds(:,2), 100)';
     elseif theta_dim == 2
         [t1, t2] = ndgrid(linspace(theta_bounds(1,1),theta_bounds(1,2), 100)', ...
-            linspace(theta_bounds(1,1),theta_bounds(1,2), 100)');
+            linspace(theta_bounds(2,1),theta_bounds(2,2), 100)');
         theta_space = [t1(:), t2(:)];
     else
         theta_space = [];
@@ -155,7 +168,9 @@ for iter=1:params.Niter
             gprMdl = fitrgp(D, Rstar, ...
                 'Basis','constant','FitMethod','exact',...
                 'PredictMethod','exact','KernelFunction','ardsquaredexponential',...
-                'KernelParameters',[sigmaM0star;sigmaF0], 'Sigma',sigma0,'Standardize',1);
+                'KernelParameters',[params.sigmaM0; params.sigmaF0],...
+                'Sigma',params.sigma0, ...
+                'Standardize',1);
             
             theta_vec(i,:) = BOCPSpolicy(gprMdl, context_vec(i,st_dim+1:end), struct('kappa',0) , theta_bounds, false);
             if se_dim
@@ -189,43 +204,35 @@ for iter=1:params.Niter
     if (theta_dim > 1)
         context_id = 50;
         context = context_vec(context_id);
-        % x1_vec is a single value this case (single context)
-        x1_vec = theta_vec(context_id,1);
-        x2_vec = theta_vec(context_id,2);
+        Rstar = MapToContext(Dfull, context, @problem.r_func);
 
-        [x1, x2] = meshgrid(linspace(theta_bounds(1,1),theta_bounds(1,2), 100), ...
+        [x1, x2] = ndgrid(linspace(theta_bounds(1,1),theta_bounds(1,2), 100), ...
             linspace(theta_bounds(2,1),theta_bounds(2,2), 100));
         y = arrayfun(@(t1, t2)(problem.sim_eval_func(context, [t1 t2])), x1, x2);
-        z_vec = r_vec(context_id);
         
-        [ropt, ind] = max(y);
-        %[ind] = ind2sub([100,100], ind);
-        x1opt_vec = x1(ind);
-        x2opt_vec = x2(ind);
-        zopt_vec = ropt;
+        [ropt, ind] = max(y(:)); %will return 1d indexing
+        thetaval = [theta_vec(context_id, :) r_vec(context_id, :)]
+        thetaopt = [t1(ind), t2(ind), ropt]
     else
         
-        [x1, x2] = meshgrid(linspace(bounds(1,1),bounds(1,2), 100), ...
+        [x1, x2] = ndgrid(linspace(bounds(1,1),bounds(1,2), 100), ...
             linspace(bounds(2,1),bounds(2,2), 100));
         y = arrayfun(@problem.sim_eval_func, x1, x2);
-        x1_vec = context_vec(:,1);
-        x2_vec = theta_vec(:,1);
-        z_vec = r_vec;
-        x1opt_vec = x1(1,:)';
-        x2opt_vec = theta_opt(:,1);
-        zopt_vec = r_opt;
     end
-    
+        
     figure(1);
-    mesh(x1(1,:)', x2(:,1), y);
+    mesh(x1, x2, y);
     hold on
-    plot3(x1_vec, x2_vec, z_vec);
-    plot3(x1opt_vec, x2opt_vec, zopt_vec);
+    if theta_dim == 1
+        plot3(context_vec(:,1), theta_vec(:,1), r_vec);
+        plot3(x1, theta_opt, r_opt);
+    else
+        scatter3(Dfull.theta(:,1), Dfull.theta(:,2), Rstar);
+    end
     hold off
     xlabel('context');
     ylabel('angle');
-    %zlim([0,5]);
-    %caxis([0,5]);
+    colorscale = caxis();
     view(0,90)
     %legend('Real R values');
     
@@ -241,21 +248,22 @@ for iter=1:params.Niter
     if theta_dim == 1
         Yplot = reshape(ypred, size(x1,1), []);
     else
-        Yplot = reshape(ypred, size(context_vec,1), 100, []);
-        Yplot = Yplot(context_id, :, :);
+        Yplot = reshape(ypred, [], size(context_vec,1)); %each column is a context
+        Yplot = Yplot(:, context_id);
         Yplot = reshape(Yplot, 100, 100);
     end
     
     figure(2);
-    mesh(x1(1,:)', x2(:,1), Yplot);
+    mesh(x1, x2, Yplot);
     hold on
     if theta_dim == 1
         scatter3(Dfull.st, Dfull.theta, Dfull.r);
     else
-        scatter3(Dfull.theta(:,1), Dfull.theta(:,2), Dfull.r);
+        scatter3(Dfull.theta(:,1), Dfull.theta(:,2), Rstar);
     end
     xlabel('context');
     ylabel('angle');
+    caxis(colorscale);
     %legend('Data','GPR predictions');
     view(0,90)
     hold off
@@ -264,33 +272,32 @@ for iter=1:params.Niter
     if theta_dim == 1
         Yplot = reshape(ystd, size(x1,1), []);
     else
-        Yplot = reshape(ystd, size(context_vec,1), 100, []);
-        Yplot = Yplot(context_id, :, :);
+        Yplot = reshape(ystd, [], size(context_vec,1)); %each column is a context
+        Yplot = Yplot(:, context_id);
         Yplot = reshape(Yplot, 100, 100);
     end
     figure(3);
-    mesh(x1(1,:)', x2(:,1), Yplot);
+    mesh(x1, x2, Yplot);
     xlabel('context');
     ylabel('angle');
-    %legend('GPR uncertainty');
-    view(0,90)
+    %view(0,90)
     hold off
     
     if theta_dim == 1
         Yplot = reshape(acq_val, size(x1,1), []);
     else
-        Yplot = reshape(acq_val, size(context_vec,1), 100, []);
-        Yplot = Yplot(context_id, :, :);
+        Yplot = reshape(acq_val, [], size(context_vec,1)); %each column is a context
+        Yplot = Yplot(:, context_id);
         Yplot = reshape(Yplot, 100, 100);
     end
     
     figure(4);
-    mesh(x1(1,:)', x2(:,1), Yplot);
+    mesh(x1, x2, Yplot);
     hold on
     if theta_dim == 1
         scatter3(Dfull.st, Dfull.theta, Dfull.r);
     else
-        scatter3(Dfull.theta(:,1), Dfull.theta(:,2), Dfull.r);
+        scatter3(Dfull.theta(:,1), Dfull.theta(:,2), Rstar);
     end
     xlabel('context');
     ylabel('angle');
