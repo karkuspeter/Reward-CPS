@@ -159,7 +159,7 @@ for iter=1:params.Niter
     else
         theta_space = [];
     end
-    ypred = []; ystd = []; acq_val=[];
+    ypred = []; ystd = []; acq_val=[]; policy_pred_vec=[];
     for i=1:size(context_vec,1)
         if isRBOCPS
             Rstar = MapToContext(Dfull, context_vec(i,1:st_dim), @problem.r_func);
@@ -173,6 +173,7 @@ for iter=1:params.Niter
                 'Standardize',1);
             
             theta_vec(i,:) = BOCPSpolicy(gprMdl, context_vec(i,st_dim+1:end), struct('kappa',0) , theta_bounds, false);
+            policy_pred_vec = [policy_pred_vec; predict(gprMdl, [context_vec(i,st_dim+1:end), theta_vec(i,:)])];
             if se_dim
                 pred_space = [context_vec(i,st_dim+1:end).*ones(size(theta_space)), theta_space];
             else
@@ -180,15 +181,17 @@ for iter=1:params.Niter
             end
         else           
             theta_vec(i,:) = BOCPSpolicy(gprMdl, context_vec(i,:), struct('kappa',0), theta_bounds, false);  
+            policy_pred_vec = [policy_pred_vec; predict(gprMdl, [context_vec(i,:) theta_vec(i,:)])];
             pred_space = [context_vec(i,:)*ones(size(theta_space,1),size(context_vec,2)), theta_space];
         end
         r_vec(i,:) = problem.sim_eval_func(context_vec(i,:), theta_vec(i,:));
+        
         %if params.EvalAllTheta
-            [newypred, newystd] = predict(gprMdl, pred_space);
-            
-            ypred = [ypred; newypred];
-            ystd = [ystd; newystd];
-            acq_val = [acq_val; -acq_func_bo(gprMdl, pred_space, params.kappa)];
+        [newypred, newystd] = predict(gprMdl, pred_space);
+        
+        ypred = [ypred; newypred];
+        ystd = [ystd; newystd];
+        acq_val = [acq_val; -acq_func_bo(gprMdl, pred_space, params.kappa)];
         %end
     end
     
@@ -202,7 +205,7 @@ for iter=1:params.Niter
     end
     
     if (theta_dim > 1)
-        context_id = 50;
+        context_id = 80;
         context = context_vec(context_id);
         Rstar = MapToContext(Dfull, context, @problem.r_func);
 
@@ -210,9 +213,11 @@ for iter=1:params.Niter
             linspace(theta_bounds(2,1),theta_bounds(2,2), 100));
         y = arrayfun(@(t1, t2)(problem.sim_eval_func(context, [t1 t2])), x1, x2);
         
-        [ropt, ind] = max(y(:)); %will return 1d indexing
-        thetaval = [theta_vec(context_id, :) r_vec(context_id, :)]
-        thetaopt = [t1(ind), t2(ind), ropt]
+        [r_opt, ind] = max(y(:)); %will return 1d indexing
+        theta_opt = [t1(ind), t2(ind)];
+        current_and_opt = [[theta_vec(context_id, :) r_vec(context_id, :)]; ...
+        theta_opt r_opt]
+               
     else
         
         [x1, x2] = ndgrid(linspace(bounds(1,1),bounds(1,2), 100), ...
@@ -228,6 +233,8 @@ for iter=1:params.Niter
         plot3(x1, theta_opt, r_opt);
     else
         scatter3(Dfull.theta(:,1), Dfull.theta(:,2), Rstar);
+        scatter3(theta_opt(1), theta_opt(2), r_opt,'*' );
+        scatter3(theta_vec(context_id,1), theta_vec(context_id,2), policy_pred_vec(context_id),'*' )        
     end
     hold off
     xlabel('context');
@@ -260,6 +267,7 @@ for iter=1:params.Niter
         scatter3(Dfull.st, Dfull.theta, Dfull.r);
     else
         scatter3(Dfull.theta(:,1), Dfull.theta(:,2), Rstar);
+        scatter3(theta_vec(context_id,1), theta_vec(context_id,2), policy_pred_vec(context_id),'*' );
     end
     xlabel('context');
     ylabel('angle');
