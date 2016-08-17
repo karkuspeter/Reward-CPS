@@ -8,7 +8,7 @@ classdef ToyCannon1D2D < ProblemInterface
         function obj=ToyCannon1D2D()
             obj.toycannon = ToyCannon;
 
-            obj.theta_bounds = [0, pi/2-0.2; 0.5, 1.5];
+            obj.theta_bounds = [0, pi/2-0.2; 0.5, 3];
             obj.st_bounds = [0, 12];
             obj.se_bounds = [[], []];
         end
