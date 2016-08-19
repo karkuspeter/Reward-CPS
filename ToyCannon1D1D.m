@@ -24,14 +24,18 @@ classdef ToyCannon1D1D < ProblemInterface
             [r, result] = obj.toycannon.Simulate(context, theta, 1, 0);
         end
         
-        function [theta_vec, r_vec] = optimal_values(obj, datapoints)
+        function [theta_vec, r_vec] = optimal_values(obj, datapoints, contextpoints)
             
             % compute optimal policy
-            [x1, x2] = meshgrid(linspace(obj.st_bounds(1,1),obj.st_bounds(1,2), datapoints), ...
+            [x1, x2] = meshgrid(linspace(obj.st_bounds(1,1),obj.st_bounds(1,2), contextpoints), ...
                 linspace(obj.theta_bounds(1,1),obj.theta_bounds(1,2), datapoints));
             y = arrayfun(@obj.sim_eval_func, x1, x2)';
             [r_vec, theta_I] = max(y, [], 2);
             theta_vec = x2(theta_I);
+        end
+        
+        function PlotEnv(obj)
+            obj.toycannon.PlotEnv()
         end
     end
     

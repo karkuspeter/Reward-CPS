@@ -10,16 +10,16 @@ function [ stats, linstat, params ] = RBOCPS( input_params )
 
 params = struct(...
      'problem', ToyCannon1D2D, ...
-     'kappa', 4, ...
-     'sigmaM0', [0.01; 0.01; 0.1], ... % lengthscale, how much inputs should be similar in that dim. 
+     'kappa', 0.2, ...
+     'sigmaM0', [0.01; 0.01],... %; 0.1], ... % lengthscale, how much inputs should be similar in that dim. 
      ...               % i.e. how far inputs should influence each other
      ...               % can be single value or vector for each theta dim
      'sigmaF0', 1,...  % how much inputs are correlated - 
      'sigma0', 0.001, ... %how noisy my observations are, ...
-     'Algorithm', 1, ...   % 1 BOCPS, 2 RBOCPS, 3 ACES, 4 RACES
-     'Niter', 500, ...
+     'Algorithm', 2, ...   % 1 BOCPS, 2 RBOCPS, 3 ACES, 4 RACES
+     'Niter', 120, ...
      'InitialSamples', 100, ...
-     'EvalModulo', 100, ...
+     'EvalModulo', 20, ...
      'EvalAllTheta', 0, ...
      'output_off', 0);
  
@@ -58,7 +58,7 @@ elseif length(params.sigmaM0) ~= gp_dim
 end
 
 % optimal values
-[theta_opt, r_opt] = problem.optimal_values(100);
+[theta_opt, r_opt] = problem.optimal_values(100, 100);
 
 
 %% main iter
@@ -144,7 +144,7 @@ for iter=1:params.Niter
         continue;
     end
     
-    % evaluate offline performance
+    %% evaluate offline performance
     if (~params.output_off)
         fprintf('Eval iteration %d \n', iter);
     end
@@ -199,122 +199,13 @@ for iter=1:params.Niter
     linstat.R_s(iter,:) = r_vec';
     linstat.R_mean(iter,:) = mean(r_vec);
 
-    % show environment and performance
+    %% show environment and performance
     if (params.output_off || st_dim + se_dim + theta_dim > 3 || iter < 1)
         continue;
     end
-    
-    if (theta_dim > 1)
-        context_id = 80;
-        context = context_vec(context_id);
-        Rstar = MapToContext(Dfull, context, @problem.r_func);
+    context_id = 20;
+    ShowRBOCPS;
 
-        [x1, x2] = ndgrid(linspace(theta_bounds(1,1),theta_bounds(1,2), 100), ...
-            linspace(theta_bounds(2,1),theta_bounds(2,2), 100));
-        y = arrayfun(@(t1, t2)(problem.sim_eval_func(context, [t1 t2])), x1, x2);
-        
-        [r_opt, ind] = max(y(:)); %will return 1d indexing
-        theta_opt = [t1(ind), t2(ind)];
-        current_and_opt = [[theta_vec(context_id, :) r_vec(context_id, :)]; ...
-        theta_opt r_opt]
-               
-    else
-        
-        [x1, x2] = ndgrid(linspace(bounds(1,1),bounds(1,2), 100), ...
-            linspace(bounds(2,1),bounds(2,2), 100));
-        y = arrayfun(@problem.sim_eval_func, x1, x2);
-    end
-        
-    figure(1);
-    mesh(x1, x2, y);
-    hold on
-    if theta_dim == 1
-        plot3(context_vec(:,1), theta_vec(:,1), r_vec);
-        plot3(x1, theta_opt, r_opt);
-    else
-        scatter3(Dfull.theta(:,1), Dfull.theta(:,2), Rstar);
-        scatter3(theta_opt(1), theta_opt(2), r_opt,'*' );
-        scatter3(theta_vec(context_id,1), theta_vec(context_id,2), policy_pred_vec(context_id),'*' )        
-    end
-    hold off
-    xlabel('context');
-    ylabel('angle');
-    colorscale = caxis();
-    view(0,90)
-    %legend('Real R values');
-    
-    %if (~params.EvalAllTheta)
-    %    drawnow;
-    %    continue;
-    %end
-    % show prediction
-    %[x1, x2] = meshgrid(linspace(bounds(1,1),bounds(1,2), 100), ...
-    %    linspace(bounds(2,1),bounds(2,2), 100));
-    %Xplot = reshape(cat(2, x1, x2), [], 2);
-    %[ypred, ystd] = predict(gprMdl, Xplot);
-    if theta_dim == 1
-        Yplot = reshape(ypred, size(x1,1), []);
-    else
-        Yplot = reshape(ypred, [], size(context_vec,1)); %each column is a context
-        Yplot = Yplot(:, context_id);
-        Yplot = reshape(Yplot, 100, 100);
-    end
-    
-    figure(2);
-    mesh(x1, x2, Yplot);
-    hold on
-    if theta_dim == 1
-        scatter3(Dfull.st, Dfull.theta, Dfull.r);
-    else
-        scatter3(Dfull.theta(:,1), Dfull.theta(:,2), Rstar);
-        scatter3(theta_vec(context_id,1), theta_vec(context_id,2), policy_pred_vec(context_id),'*' );
-    end
-    xlabel('context');
-    ylabel('angle');
-    caxis(colorscale);
-    %legend('Data','GPR predictions');
-    view(0,90)
-    hold off
-    
-    
-    if theta_dim == 1
-        Yplot = reshape(ystd, size(x1,1), []);
-    else
-        Yplot = reshape(ystd, [], size(context_vec,1)); %each column is a context
-        Yplot = Yplot(:, context_id);
-        Yplot = reshape(Yplot, 100, 100);
-    end
-    figure(3);
-    mesh(x1, x2, Yplot);
-    xlabel('context');
-    ylabel('angle');
-    %view(0,90)
-    hold off
-    
-    if theta_dim == 1
-        Yplot = reshape(acq_val, size(x1,1), []);
-    else
-        Yplot = reshape(acq_val, [], size(context_vec,1)); %each column is a context
-        Yplot = Yplot(:, context_id);
-        Yplot = reshape(Yplot, 100, 100);
-    end
-    
-    figure(4);
-    mesh(x1, x2, Yplot);
-    hold on
-    if theta_dim == 1
-        scatter3(Dfull.st, Dfull.theta, Dfull.r);
-    else
-        scatter3(Dfull.theta(:,1), Dfull.theta(:,2), Rstar);
-    end
-    xlabel('context');
-    ylabel('angle');
-    %legend('Data','Aquisition function');
-    view(0,90)
-    hold off
-    
-    drawnow
-    %pause;
 end
 
 stats.last_R_mean = linstat.R_mean(end,:);
