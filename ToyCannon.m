@@ -19,7 +19,7 @@ classdef ToyCannon
       function obj = ToyCannon()
          
          obj.angleNoise = 1/180*pi;
-         obj.s_bounds = [0, 12];
+         obj.s_bounds = [6, 12];
          obj.hill = struct('c', [3 5 6 7], ...
                            'h', [.3 .3 .4 .2], ...
                            'scale', [.5 .5 .1 2]);
