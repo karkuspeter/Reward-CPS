@@ -1,6 +1,6 @@
     if (theta_dim > 1)
         context = context_vec(context_id);
-        Rstar = MapToContext(Dfull, context, @problem.r_func);
+        [~, Rstar] = MapToContext(Dfull, context, @problem.r_func, isPopulate, 0, st_bounds);
 
         [x1, x2] = ndgrid(linspace(theta_bounds(1,1),theta_bounds(1,2), 100), ...
             linspace(theta_bounds(2,1),theta_bounds(2,2), 100));
@@ -114,20 +114,20 @@
     axis(limits);
 
     figure(6);
-    hold on
     if theta_dim == 1
     else
         plot3(theta_opt(:,1), theta_opt(:,2), context_vec(:,1));
+        hold on
         scatter3(theta_opt(:,1), theta_opt(:,2), context_vec(:,1), '*');
-        
+
         plot3(theta_vec(:,1), theta_vec(:,2), context_vec(:,1));
         scatter3(theta_vec(:,1), theta_vec(:,2), context_vec(:,1));
     end
     hold off
     xlabel('theta_a'); ylabel('theta_v'); zlabel('context');
     
-    figure(7);
-    problem.PlotEnv();
+    %figure(7);
+    %problem.PlotEnv();
     
     
     drawnow
