@@ -64,15 +64,18 @@ save(strcat('results/hyper-', datestr(now,'dd-mm-yyyy-HH-MM'), '.mat'));
 % show specific result
 figure
 
-indices = [1 2 3];
+indices = [1 2];
+labels = {};
+plots = {};
 for ind = indices
     rep_stats = h_stats(:,:,ind);
     linstat_vec = h_linstats(:,:,ind);
     params = h_params(:,:,ind);
-    rep_stats.mean_linstat.evaluated = zeros(120, 1);
-    rep_stats.mean_linstat.evaluated( [40, 80, 120] ) = 1;
+    labels = [labels, {num2str(ind)}];
     params
     show_func()
+    plots = [plots, {h}];
 end
+legend([plots{:}], labels);
 
 no_params = 0;
