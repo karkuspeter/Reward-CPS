@@ -11,13 +11,13 @@ function [ stats, linstat, params ] = RBOCPS( input_params )
 params = struct(...
      'problem', ToyCannon1D2D, ...
      'kappa', 0.4, ...
-     'sigmaM0', 0.01, ...%[0.01; 0.01],... %; 0.1], ... % lengthscale, how much inputs should be similar in that dim. 
+     'sigmaM0', 0.05, ...%[0.01; 0.01],... %; 0.1], ... % lengthscale, how much inputs should be similar in that dim. 
      ...               % i.e. how far inputs should influence each other
      ...               % can be single value or vector for each theta dim
      'sigmaF0', 1,...  % how much inputs are correlated - 
-     'sigma0', 0.001, ... %how noisy my observations are, ...
+     'sigma0', 0.003, ... %how noisy my observations are, ...
      'Algorithm', 3, ...   % 1 BOCPS, 2 RBOCPS, 3, PRBOCPS, 4 ACES, 5 RACES
-     'Niter', 60, ...
+     'Niter', 120, ...
      'InitialSamples', 20, ...
      'EvalModulo', 20, ...
      'EvalAllTheta', 0, ...
@@ -77,7 +77,7 @@ Dfull = struct('st', [], 'se', [], 'theta', [], 'outcome', [], 'r', []);
 stats = struct('last_R_mean', 0);
 linstat = struct('R_mean', [], 'st', [], 'se', [], 'theta', [], ...
                  'theta_s', [], 'R_s', [], 'R_opt', [], ...
-                 'outcome', []);
+                 'outcome', [], 'evaluated', []);
              
 for iter=1:params.Niter
     % sample random context
@@ -145,6 +145,7 @@ for iter=1:params.Niter
     linstat.r(iter,:) = r;
     linstat.R_opt(iter,:) = mean(r_opt); %this is always the same
     linstat.outcome(iter, :) = outcome; %rename this
+    linstat.evaluated(iter, :) = 0;
     
     if (mod(iter, params.EvalModulo) > 0 || iter<=params.InitialSamples)
         continue;
@@ -199,6 +200,7 @@ for iter=1:params.Niter
     linstat.theta_s(iter,:) = theta_vec(:,1)';
     linstat.R_s(iter,:) = r_vec';
     linstat.R_mean(iter,:) = mean(r_vec);
+    linstat.evaluated(iter,:) = 1; %override previous 0
 
     %% show environment and performance
     if (params.output_off || st_dim + se_dim + theta_dim > 3 || iter < 1)
@@ -213,8 +215,11 @@ stats.last_R_mean = linstat.R_mean(end,:);
 
 if ~params.output_off
     figure
-    plot(params.EvalModulo:params.EvalModulo:length(linstat.R_mean), linstat.R_mean(params.EvalModulo:params.EvalModulo:end), ...
-         params.EvalModulo:params.EvalModulo:length(linstat.R_mean), mean(r_opt)*ones(size(linstat.R_mean(params.EvalModulo:params.EvalModulo:end))))
+    mask = 1:length(linstat.R_mean);
+    mask = mask(linstat.evaluated > 0);
+    plot(mask', linstat.R_mean(mask), ...
+         mask', mean(r_opt).*ones(size(mask')))
+     % params.EvalModulo:params.EvalModulo:length(linstat.R_mean)
 end
 
 end
