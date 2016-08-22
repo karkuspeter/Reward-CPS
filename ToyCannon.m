@@ -31,7 +31,7 @@ classdef ToyCannon
          obj.x = obj.s_bounds(1):0.1:obj.s_bounds(2)*2;
          obj.y = obj.HillValue(obj.x);
          %obj.r_func = @(a,v,s,hillats,xres,yres)(4-sqrt( (xres-s).^2 + (yres - hillats)^2));
-         obj.r_func = @(a,v,s,hillats,xres,yres)(4-sqrt( (xres-s).^2 ) - 0.5*a.^2 - 0.5*v.^2);
+         obj.r_func = @(a,v,s,hillats,xres,yres)(4-sqrt( (xres-s).^2 )  - 1.*v.^2); %- 0.1*a.^2
         
          % reward: eucladian distance from target on the hill,
          % +4 to address 0 mean
