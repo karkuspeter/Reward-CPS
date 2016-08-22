@@ -1,7 +1,7 @@
-hyper_params = struct('Algorithm', [1,2]);
+hyper_params = struct('Algorithm', [1,2,3], 'sigmaF0', [0.5 1 1.5]);
 common_params = struct('output_off', 1, ...
-                       'Niter', 50);
-repeat_setting = 10;
+                       'Niter', 120);
+repeat_setting = 5;
 
 % create a list of all permutations     
 hp_list = [common_params]; % start with params for all executions
@@ -23,8 +23,10 @@ h_stats = [];
 h_linstats = [];
 h_params = [];
 
+seed = rng();
 for i = 1:numel(hp_list)
     list_el = hp_list(i);
+    rng(seed);
     
     repeats = repeat_setting;
     keep_prev = 0;
@@ -60,11 +62,15 @@ res_list = hp_list;
 save(strcat('results/hyper-', datestr(now,'dd-mm-yyyy-HH-MM'), '.mat'));
 
 % show specific result
-indices = [1 2];
+figure
+
+indices = [1 2 3];
 for ind = indices
     rep_stats = h_stats(:,:,ind);
     linstat_vec = h_linstats(:,:,ind);
     params = h_params(:,:,ind);
+    rep_stats.mean_linstat.evaluated = zeros(120, 1);
+    rep_stats.mean_linstat.evaluated( [40, 80, 120] ) = 1;
     params
     show_func()
 end
