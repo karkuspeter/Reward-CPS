@@ -24,10 +24,11 @@ problem = ToyCannon1D2D;
 in.xmin = [problem.st_bounds(1,1)/10 problem.theta_bounds(1,1)' ];
 in.xmax = [problem.st_bounds(1,2)/10 problem.theta_bounds(1,2)' ]
 in.f = @(x)(arrayfun(@(a,b)(-problem.sim_func(a*10, [b 1])/5-0.4), x(:,1), x(:,2)));
-hyp.cov         = log([0.2*ones(N,1);1]); % hyperparameters for the kernel
+hyp.cov         = log([0.3^2; 0.45^2; 1]); % hyperparameters for the kernel
 %TODO these are not normalized!
 hyp.lik         = log([3e-3]); % noise level on signals (log(standard deviation));
 in.hyp          = hyp;  % hyperparameters, with fields .lik (noise level) and .cov (kernel hyperparameters), see documentation of the kernel functions for details.
+in.MapFunc = @(GP,st)(MapFunc(GP, st, @(s, x, out)(problem.r_func(s*10, [x 1], out))));
 
 % in.xmin = problem.theta_bounds(:,1)';
 % in.xmax = problem.theta_bounds(:,2)';

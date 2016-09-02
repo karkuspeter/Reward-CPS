@@ -1,4 +1,4 @@
-function val = ACES(GP, logP_vec, zb_vec, lmb_vec, x, s_vec, params, seed)
+function val = ACES(GP, logP_vec, zb_vec, lmb_vec, y_vec, x, s_vec, st_dim, params, seed)
 % s_vec: trial contexts N * s_dim
 % logP vec: logp(x=xmin) zb_count * 1 * N
 
@@ -41,8 +41,13 @@ parfor i=1:params.Nn    %parfor on lab PC got double speed with 4 cores, Nn = 4
     logP = logP_vec(:, :, s_dex);
     zb = zb_vec(:, :,s_dex);
     lmb = lmb_vec(:,:, s_dex);
+    xrel = x(st_dim+1:end);
+    GPrel = GP;
+    if st_dim
+        GPrel.y = y_vec(:,:,s_dex);
+    end
     
-    val(i) = LossFunction(GP, logP, zb, lmb, x, params);
+    val(i) = LossFunction(GPrel, logP, zb, lmb, xrel, params);
     
     %TODO lmb is for the full context+theta space,
     % should be for p(xmin | context)

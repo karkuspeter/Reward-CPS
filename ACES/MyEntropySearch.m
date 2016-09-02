@@ -21,6 +21,9 @@ if ~isfield(in,'LossFunc'); in.LossFunc = {@LogLoss}; end;
 if ~isfield(in,'PropFunc'); in.PropFunc = {@EI_fun}; end;
 if ~isfield(in,'obs'); in.obs = []; end;
 if ~isfield(in,'ReturnOptimal'); in.ReturnOptimal = 1; end;
+if ~isfield(in,'st_dim'); in.st_dim = 0; end;
+if ~isfield(in,'se_dim'); in.se_dim = 1; end;
+if ~isfield(in,'MapFunc'); in.MapFunct = {@(GP, s)(GP)}; end;
 
 in.D = size(in.xmax,2); % dimensionality of inputs (search domain)
 
@@ -35,7 +38,22 @@ in.D = size(in.xmax,2); % dimensionality of inputs (search domain)
 %in.MaxEval      = H;    % Horizon (number of evaluations allowed)
 %in.f            = @(x) f(x) % handle to objective function
 
+
+
 %% set up
+D = in.D;
+st_dim = in.st_dim;
+se_dim = in.se_dim;
+s_dim = in.st_dim + in.se_dim;
+th_dim = D-s_dim;
+if s_dim ~= 1
+    disp('Error: only 1d context supported');
+    return;
+end
+sti = 1:st_dim;
+sei = st_dim+1:st_dim+se_dim;
+thi = s_dim+1:D;
+
 GP              = struct;
 GP.covfunc      = in.covfunc;
 GP.covfunc_dx   = in.covfunc_dx;
@@ -62,18 +80,35 @@ GP.cK  = chol(GP.K);
 
 GP.invL = inv(diag(exp(in.hyp.cov(1:end-1)))); %inverse of length scales
 
-D = in.D;
-S0= 0.5 * norm(in.xmax - in.xmin);
 
-myparams = struct('S', 1000, 'Ny', 10, 'Nn', 8, 'Ntrial_s', 100, 'Neval', 20);
+params = struct('S', 1000, 'Ny', 10,  'Ntrial_st', 20, ...
+    'Ntrial_se', 100, ...
+    'Nn', 8, ...  % only the neares Nn out of Ntrial_se will be evaluated for a context se
+    'Nb', in.Nb, ... %number of representers for p_min over theta space
+    'Neval', [20, 100], ...
+    'xmin', in.xmin, 'xmax', in.xmax, 'st_dim', in.st_dim, 'se_dim', in.se_dim);
 
-s_dim = 1; 
-s_vec = linspace(in.xmin(1), in.xmax(1), myparams.Neval)';
+if ~st_dim
+    params.Ntrial_st = 1;
+end
+if ~se_dim
+    params.Ntrial_se = 1;
+end
+    
+% construct grid
+evalgrid = cell(1, D);
+gridvect = cell(1, D);
+for i_se=1:D
+    gridvect{i_se} = linspace(in.xmin(i_se), in.xmax(i_se), params.Neval(i_se))';
+end
+[evalgrid{:}] = ndgrid(gridvect{:});
 
 if in.ReturnOptimal
-    [xx, xy] = meshgrid(s_vec, linspace(in.xmin(2), in.xmax(2), 100)');
-    
-    out.val_opt = min(arrayfun(@(a,b)(in.f([a b])), xx, xy), [], 1)';
+    val_full = arrayfun(@(varargin)(in.f([varargin{:}])), evalgrid{:}); % this is a D dim array
+    out.val_opt = val_full;
+    for i_se=s_dim+1:D
+        out.val_opt = min(out.val_opt, [], i_se);
+    end
 end
 
 %% iterations
@@ -87,41 +122,47 @@ while ~converged && (numiter < in.MaxEval)
     fprintf('\n');
     disp(['iteration number ' num2str(numiter)])
 %     try
-        trial_contexts = in.xmin(1) + rand(myparams.Ntrial_s,1)*(in.xmax(1) - in.xmin(1));
-
+    st_trials = samplerange(in.xmin(sti), in.xmax(sti), params.Ntrial_st);
+    se_trials = samplerange(in.xmin(sei), in.xmax(sei), params.Ntrial_se);
+    %TODO: replace with sampling distribution that tries to cover range
+    %rather than picking independently
+    
         % sample belief and evaluation points
         %[zb,lmb]   = SampleBeliefLocations(GP,in.xmin,in.xmax,in.Nb,BestGuesses,in.PropFunc);
         %TODO should be Thompson sampling. This EI based is absolutely not
         %good
-         zb = repmat(in.xmin, in.Nb,1) + rand(in.Nb, D).*repmat(in.xmax - in.xmin, in.Nb, 1);
-         lmb = -log(norm([in.xmin' in.xmax']))*ones(in.Nb,1);  %log of uniform measure, |I|^-1
-         [zt,sorti] = sort(zb(:,2));
-         vals = [(zt(2)-zt(1))/2 + zt(1)-in.xmin(2);
+        
+    zb = samplerange(in.xmin(thi), in.xmax(thi), params.Nb);
+    
+    lmb = -log(norm([in.xmin(thi)' in.xmax(thi)']))*ones(params.Nb,1);  %log of uniform measure, |I|^-1
+    
+    if th_dim == 1
+       [zt,sorti] = sort(zb(:,end)); %theta line
+         vals = [(zt(2)-zt(1))/2 + zt(1)-in.xmin(end);
                   (zt(3:end) - zt(1:end-2))/2;
-                  in.xmax(2) - zt(end) + (zt(end)-zt(end-1))/2];
+                  in.xmax(end) - zt(end) + (zt(end)-zt(end-1))/2];
          vals(sorti) = vals; %restore order
          lmb = lmb + log(vals);
-         %lmb = lmb + 
          %TODO this is not good, need better representers
-         
-        % generate zb, logP vectors
-        zb_vec = zeros(in.Nb, in.D, myparams.Ntrial_s);
-        lmb_vec = zeros(in.Nb, 1, myparams.Ntrial_s);
-        logP_vec = zeros(in.Nb, 1, myparams.Ntrial_s);
-        %Mb_vec = zeros(in.Nb, 1, myparams.Ntrial_s);
-        %Vb_vec = zeros(in.Nb, in.Nb, myparams.Ntrial_s);
-        for i=1:myparams.Ntrial_s
-            zb_vec(:,:,i) = [repmat(trial_contexts(i,:),in.Nb,1) zb(:,s_dim+1:end)];
-            lmb_vec(:,:,i) = lmb;
-            %[Mb_vec(:,:,i),Vb_vec(:,:,i)]    = GP_moments(GP,zb_vec(:,:,i));
-            logP_vec(:,:,i) = EstPmin(GP, zb_vec(:,:,i), myparams.S, randn(size(zb,1),myparams.S));  %joint_min(Mb_vec(:,:,i), Vb_vec(:,:,i), 1);          
+    else
+        disp('Note: for theta_dim > 1 this is not great\n');
+    end
+    
+    % generate zb, logP vectors for each trial se
+    zb_vec = zeros(in.Nb, se_dim+th_dim, params.Ntrial_se, params.Ntrial_st);
+    lmb_vec = zeros(in.Nb, 1, params.Ntrial_se, params.Ntrial_st);
+    logP_vec = zeros(in.Nb, 1, params.Ntrial_se, params.Ntrial_st);
+    GP_cell = cell(params.Ntrial_st, 1);
+    
+    for i_st=1:params.Ntrial_st
+        GP_cell{i_st} = in.MapFunc(GP, st_trials(i_st,:));
+        for i_se=1:params.Ntrial_se
+            zb_vec(:,:,i_se, i_st) = [repmat(se_trials(i_se,:),in.Nb,1) zb];
+            lmb_vec(:,:,i_se, i_st) = lmb;
+            logP_vec(:,:,i_se, i_st) = EstPmin(GP, zb_vec(:,:,i_se, i_st), params.S, randn(size(zb,1), params.S));  %joint_min(Mb_vec(:,:,i), Vb_vec(:,:,i), 1);          
         end
-        
-        % construct ACES function for this GP
-        rand_start = rng();
-        aces_f = @(x)(ACES(GP, logP_vec, zb_vec, lmb_vec, x, trial_contexts, myparams, rand_start));
-
-
+    end
+       
 %         % these are the locations where pmin will be approximated 
 %         % uses expected improvement (EI) to select good points
 %         % zb are the points, lmb is a measure according to EI. 
@@ -227,17 +268,28 @@ while ~converged && (numiter < in.MaxEval)
 %         [xatmin' minval']
 %         [minval1, best] = min(minval);
 %         xatmin1 = xatmin(:,best)';
+ 
+
+        % construct ACES function for this GP
+        rand_start = rng();
+        % rand_start = rng('shuffle');
+        %aces_f = @(x)(ACES(GP, logP_vec, zb_vec, lmb_vec, y_vec, x, trial_contexts, in.st_dim, params, rand_start));
+        %aces_f = @(x)(ACES2(GP, zb, lmb, x, in.st_dim, in.MapFunc, params, rand_start));
+        aces_f = @(x)(ACES3(GP_cell, logP_vec, zb_vec, lmb_vec, st_trials, se_trials, x, params, rand_start));
+         
         
-        
-        [minval1,xatmin1,hist] = Direct(struct('f', @(x)(aces_f(x'))), [in.xmin' in.xmax'], struct('showits', 1, 'maxevals', 40));
-        xrange = [in.xmax' - in.xmin']/10;
+        [minval1,xatmin1,hist] = Direct(struct('f', @(x)(aces_f(x'))), [in.xmin([sei thi])' in.xmax([sei thi])'], struct('showits', 1, 'maxevals', 40));
+        xrange = [in.xmax([sei thi])' - in.xmin([sei thi])']/10;
         [minval2,xatmin2,hist] = Direct(struct('f', @(x)(aces_f(x'))), [xatmin1-xrange xatmin1+xrange], struct('showits', 1, 'maxevals', 40));
+        xatmin2
+        
+        %TODO only working until here with dynamic context size!!!
         
         %% print ACES function
         fprintf('plot ACES function\n')
 
         %for printing
-        [xx, xy] = meshgrid(linspace(in.xmin(1),in.xmax(1),10)', linspace(in.xmin(2),in.xmax(2),10)');
+        [xx, xy] = meshgrid(linspace(in.xmin(1),in.xmax(1),25)', linspace(in.xmin(2),in.xmax(2),25)');
       
         figure
         aces_values = arrayfun(@(a,b)(aces_f([a b])), xx, xy);
@@ -255,43 +307,43 @@ while ~converged && (numiter < in.MaxEval)
         xx = linspace(in.xmin(1),in.xmax(1),100)';
         figure
         hold on
-        for i=1:100
+        for i_se=1:100
             zz = sort(zb(:,2));
-            pmin_values(i,:) = EstPmin(GP, [repmat(xx(i),in.Nb,1) zz], 1000, randn(size(zb,1),1000));
+            pmin_values(i_se,:) = EstPmin(GP, [repmat(xx(i_se),in.Nb,1) zz], 1000, randn(size(zb,1),1000));
             %%plot3(repmat(xx(i),1,in.Nb), pmin_values(i,:), zz');
         end
         
         [xx xy] = meshgrid(linspace(in.xmin(1),in.xmax(1),100)', zz);
 
         mesh(xx, xy, exp(pmin_values)');
-        
+        caxis([0, 0.5]);
 
-        %% eval function
+        % eval function
         fprintf('evaluating function \n')
-        %xp                = Xend(xdhbv,:);
+        xp                = Xend(xdhbv,:);
         xp = xatmin2';
         yp                = in.f(xp);
         
         GP.x              = [GP.x ; xp ];
         GP.y              = [GP.y ; yp ];
-        %GP.dy             = [GP.dy; dyp];
+        GP.dy             = [GP.dy; dyp];
         GP.K              = k_matrix(GP,GP.x) + diag(GP_noise_var(GP,GP.y));
         GP.cK             = chol(GP.K);
         
-        %% estimate minimum
-%         MeanEsts(numiter,:) = sum(bsxfun(@times,zb,exp(logP)),1);
-%         [~,MAPi]            = max(logP + lmb);
-%         MAPEsts(numiter,:)  = zb(MAPi,:);
-%         
-%         fprintf('finding current best guess\n')
-%         [out.FunEst(numiter,:),FunVEst] = FindGlobalGPMinimum(BestGuesses,GP,in.xmin,in.xmax);
-%         % is the new point very close to one of the best guesses?
-%         [cv,ci] = min(sum(bsxfun(@minus,out.FunEst(numiter,:)./ell,bsxfun(@rdivide,BestGuesses,ell)).^2,2)./D);
-%         if cv < 2.5e-1 % yes. Replace it with this improved guess
-%             BestGuesses(ci,:)  = out.FunEst(numiter,:);
-%         else % no. Add it to the best guesses
-%             BestGuesses(size(BestGuesses,1)+1,:) = out.FunEst(numiter,:);
-%         end
+        % estimate minimum
+        MeanEsts(numiter,:) = sum(bsxfun(@times,zb,exp(logP)),1);
+        [~,MAPi]            = max(logP + lmb);
+        MAPEsts(numiter,:)  = zb(MAPi,:);
+        
+        fprintf('finding current best guess\n')
+        [out.FunEst(numiter,:),FunVEst] = FindGlobalGPMinimum(BestGuesses,GP,in.xmin,in.xmax);
+        % is the new point very close to one of the best guesses?
+        [cv,ci] = min(sum(bsxfun(@minus,out.FunEst(numiter,:)./ell,bsxfun(@rdivide,BestGuesses,ell)).^2,2)./D);
+        if cv < 2.5e-1 % yes. Replace it with this improved guess
+            BestGuesses(ci,:)  = out.FunEst(numiter,:);
+        else % no. Add it to the best guesses
+            BestGuesses(size(BestGuesses,1)+1,:) = out.FunEst(numiter,:);
+        end
     
         
         %% evaluate over contexts
@@ -299,9 +351,9 @@ while ~converged && (numiter < in.MaxEval)
         [xx, xy] = meshgrid(linspace(in.xmin(1),in.xmax(1),50)', linspace(in.xmin(2),in.xmax(2),50)');
         theta_vec = [];
         
-        for i=1:length(s_vec)
-            [theta, val] = ACESpolicy(GP, s_vec(i,:), [in.xmin(2)' in.xmax(2)']);    
-            theta_vec(i, :) = theta;
+        for i_se=1:length(s_vec)
+            [theta, val] = ACESpolicy(GP, s_vec(i_se,:), [in.xmin(2)' in.xmax(2)']);    
+            theta_vec(i_se, :) = theta;
         end
         val_vec = in.f([s_vec theta_vec]);
         current_performance = sum(val_vec)
