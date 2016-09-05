@@ -57,42 +57,48 @@ classdef ToyCannon
       
       function [r, result] = Simulate(obj, s, angle, v, noise)
           % reasonable input: s=3, angle=.3, v = 1;
-          if nargin < 5
-              noise = obj.angleNoise;
-          end
           
-          th = angle + randn(1)*noise;
+          r = zeros(size(s,1),1);
+          result = zeros(size(s,1),3);
           
-          yproj = obj.x.*tan(th) - 9.81/100 * obj.x.^2/2/(v*cos(th))^2; %y of ball trajectory
-          %f_yproj = @(x)(x.*tan(th) - 9.81/100 * x.^2/2/(v*cos(th))^2); %y of ball trajectory
-          
-          % find intersection with a general search, too slow
-          %[ixLand, yres] = intersections(obj.x, obj.y, obj.x, yproj);
-          
-          ixLand = find(bsxfun(@lt, yproj, obj.y));  % find all x where yproj < y
-          if(length(ixLand) < 2)
-              xres = obj.x(end);
-              yres = obj.y(end);
-          else
-              %xres = ixLand(2);
-              %yres = yres(2);
-              ixLand = ixLand(2); % ixLand(1) is the initial pos, ixLand(2) is where it hits the hill
-              xres = obj.x(ixLand);
-              yres = obj.y(ixLand);
-          end
-          
-          %evaluate
-          hillats = obj.HillValue(s);
-          r = obj.r_func(angle,v,s,hillats,xres,yres);
-          result = [hillats,xres,yres];
-          
-          %print
-          if(obj.PrintOn)
-              %ixLand = find(bsxfun(@lt, yproj, obj.y));  % find all x where yproj < y
-              figure(1);
-              obj.PlotEnv();
-              hold on, plot(obj.x(1:ixLand), yproj(1:ixLand), 'r--')
-              hold on, plot(s, ycontext, 'ko')
+          for i=1:size(s,1)
+              if nargin < 5
+                  noise = obj.angleNoise;
+              end
+
+              th = angle(i,:) + randn(1)*noise;
+
+              yproj = obj.x.*tan(th) - 9.81/100 * obj.x.^2/2/(v(i,:)*cos(th))^2; %y of ball trajectory
+              %f_yproj = @(x)(x.*tan(th) - 9.81/100 * x.^2/2/(v*cos(th))^2); %y of ball trajectory
+
+              % find intersection with a general search, too slow
+              %[ixLand, yres] = intersections(obj.x, obj.y, obj.x, yproj);
+
+              ixLand = find(bsxfun(@lt, yproj, obj.y));  % find all x where yproj < y
+              if(length(ixLand) < 2)
+                  xres = obj.x(end);
+                  yres = obj.y(end);
+              else
+                  %xres = ixLand(2);
+                  %yres = yres(2);
+                  ixLand = ixLand(2); % ixLand(1) is the initial pos, ixLand(2) is where it hits the hill
+                  xres = obj.x(ixLand);
+                  yres = obj.y(ixLand);
+              end
+
+              %evaluate
+              hillats = obj.HillValue(s(i,:));
+              r(i,:) = obj.r_func(angle(i,:),v(i,:),s(i,:),hillats,xres,yres);
+              result(i,:) = [hillats,xres,yres];
+
+              %print
+              if(obj.PrintOn)
+                  %ixLand = find(bsxfun(@lt, yproj, obj.y));  % find all x where yproj < y
+                  figure(1);
+                  obj.PlotEnv();
+                  hold on, plot(obj.x(1:ixLand), yproj(1:ixLand), 'r--')
+                  hold on, plot(s(i,:), ycontext, 'ko')
+              end
           end
       end
       

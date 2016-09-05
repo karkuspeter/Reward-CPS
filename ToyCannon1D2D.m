@@ -11,7 +11,8 @@ classdef ToyCannon1D2D < ProblemInterface
 
             obj.theta_bounds = [0.01, pi/2-0.2; 0.1, 3];
             obj.st_bounds = [1, 11];
-            obj.se_bounds = [[], []];
+            obj.se_bounds = zeros(0,2);
+            
         end
         
         function r = r_func(obj, context, theta, outcome)
@@ -71,6 +72,18 @@ classdef ToyCannon1D2D < ProblemInterface
         
         function PlotEnv(obj)
             obj.toycannon.PlotEnv()
+        end
+        
+                
+        function GPnew = MapGP(obj, GP, st)
+            GPnew = GP;
+            if size(st)
+                for i=1:size(GP.x,1)
+                    GPnew.y(i,:) = obj.r_func([st GP.x(i,1:size(obj.se_bounds,1))], GP.x(i,1+size(obj.se_bounds,1):end), GP.obs(i,:));
+                end
+                GPnew.K              = k_matrix(GPnew,GPnew.x) + diag(GP_noise_var(GPnew,GPnew.y));
+                GPnew.cK             = chol(GPnew.K);
+            end
         end
     end
     
