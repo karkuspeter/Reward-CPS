@@ -88,6 +88,8 @@ params = struct('S', 1000, 'Ny', 10,  'Ntrial_st', 20, ...
     'Neval', [20, 100], ...
     'xmin', in.xmin, 'xmax', in.xmax, 'st_dim', in.st_dim, 'se_dim', in.se_dim);
 
+plotswitch = struct('ACES', 0, 'pmin', 1, 'policy', 1);
+
 if ~st_dim
     params.Ntrial_st = 1;
 end
@@ -96,20 +98,17 @@ if ~se_dim
 end
     
 % construct grid
-evalgrid = cell(1, D);
-gridvect = cell(1, D);
-for i_se=1:D
-    gridvect{i_se} = linspace(in.xmin(i_se), in.xmax(i_se), params.Neval(i_se))';
-end
-[evalgrid{:}] = ndgrid(gridvect{:});
 
+evalgrid = evalgridfun(in.xmin, in.xmax, params.Neval);
 if in.ReturnOptimal
     val_full = arrayfun(@(varargin)(in.f([varargin{:}])), evalgrid{:}); % this is a D dim array
     out.val_opt = val_full;
-    for i_se=s_dim+1:D
-        out.val_opt = min(out.val_opt, [], i_se);
+    for i_th=s_dim+1:D
+        out.val_opt = min(out.val_opt, [], i_th);
     end
 end
+
+plot_x = (in.xmax + in.xmin)/2;
 
 %% iterations
 converged = false;
@@ -286,97 +285,129 @@ while ~converged && (numiter < in.MaxEval)
         %TODO only working until here with dynamic context size!!!
         
         %% print ACES function
-        fprintf('plot ACES function\n')
+        if plotswitch.ACES && se_dim+th_dim >= 2
+            fprintf('plot ACES function\n')
 
-        %for printing
-        [xx, xy] = meshgrid(linspace(in.xmin(1),in.xmax(1),25)', linspace(in.xmin(2),in.xmax(2),25)');
-      
-        figure
-        aces_values = arrayfun(@(a,b)(aces_f([a b])), xx, xy);
-        mesh(xx, xy, aces_values);
-        
-        hold on;
-        scatter3(GP.x(:,1), GP.x(:,2), in.f(GP.x), 'ro');
-        %scatter3(xstart(:,1), xstart(:,2), arrayfun(@(a,b)aces_f([a b]), xstart(:,1), xstart(:,2)), 'b*');
-        scatter3(xatmin1(1), xatmin1(2), minval1, 'y*');
-        scatter3(xatmin2(1), xatmin2(2), minval2, 'r*');
-        drawnow;
-        
+            %for printing
+            [xx, xy] = meshgrid(linspace(in.xmin(end-1),in.xmax(end-1),10)', linspace(in.xmin(end),in.xmax(end),10)');
+            
+            
+            
+            %indexhelper = ; %this will be empty matrix when only 1d theta+se space
+            figure
+            aces_values = arrayfun(@(a,b)(aces_f([plot_x(1:end-2) a b])), xx, xy);
+            mesh(xx, xy, aces_values);
+            
+            hold on;
+            scatter3(GP.x(:,end-1), GP.x(:,end), in.f(GP.x), 'ro');
+            %scatter3(xstart(:,1), xstart(:,2), arrayfun(@(a,b)aces_f([a b]), xstart(:,1), xstart(:,2)), 'b*');
+            scatter3(xatmin1(end-1), xatmin1(end), minval1, 'y*');
+            scatter3(xatmin2(end-1), xatmin2(end), minval2, 'r*');
+            drawnow;
+        end
 
         %% plot pmin
-        xx = linspace(in.xmin(1),in.xmax(1),100)';
-        figure
-        hold on
-        for i_se=1:100
-            zz = sort(zb(:,2));
-            pmin_values(i_se,:) = EstPmin(GP, [repmat(xx(i_se),in.Nb,1) zz], 1000, randn(size(zb,1),1000));
-            %%plot3(repmat(xx(i),1,in.Nb), pmin_values(i,:), zz');
+        if plotswitch.pmin && (st_dim == 0 && se_dim == 1 && th_dim == 1)
+            xx = linspace(in.xmin(1),in.xmax(1),100)';
+            figure
+            hold on
+            for i_se=1:100
+                zz = sort(zb(:,1));
+                pmin_values(i_se,:) = EstPmin(GP, [repmat(xx(i_se),in.Nb,1) zz], 1000, randn(size(zb,1),1000));
+                %%plot3(repmat(xx(i),1,in.Nb), pmin_values(i,:), zz');
+            end
+
+            [xx xy] = meshgrid(linspace(in.xmin(1),in.xmax(1),100)', zz);
+
+            mesh(xx, xy, exp(pmin_values)');
+            caxis([0, 0.5]);
         end
         
-        [xx xy] = meshgrid(linspace(in.xmin(1),in.xmax(1),100)', zz);
-
-        mesh(xx, xy, exp(pmin_values)');
-        caxis([0, 0.5]);
-
         % eval function
         fprintf('evaluating function \n')
-        xp                = Xend(xdhbv,:);
-        xp = xatmin2';
+        xp                = xatmin2';
         yp                = in.f(xp);
         
         GP.x              = [GP.x ; xp ];
         GP.y              = [GP.y ; yp ];
-        GP.dy             = [GP.dy; dyp];
+        %GP.dy             = [GP.dy; dyp];
         GP.K              = k_matrix(GP,GP.x) + diag(GP_noise_var(GP,GP.y));
         GP.cK             = chol(GP.K);
         
         % estimate minimum
-        MeanEsts(numiter,:) = sum(bsxfun(@times,zb,exp(logP)),1);
-        [~,MAPi]            = max(logP + lmb);
-        MAPEsts(numiter,:)  = zb(MAPi,:);
+        %MeanEsts(numiter,:) = sum(bsxfun(@times,zb,exp(logP)),1);
+        %[~,MAPi]            = max(logP + lmb);
+        %MAPEsts(numiter,:)  = zb(MAPi,:);
         
-        fprintf('finding current best guess\n')
-        [out.FunEst(numiter,:),FunVEst] = FindGlobalGPMinimum(BestGuesses,GP,in.xmin,in.xmax);
-        % is the new point very close to one of the best guesses?
-        [cv,ci] = min(sum(bsxfun(@minus,out.FunEst(numiter,:)./ell,bsxfun(@rdivide,BestGuesses,ell)).^2,2)./D);
-        if cv < 2.5e-1 % yes. Replace it with this improved guess
-            BestGuesses(ci,:)  = out.FunEst(numiter,:);
-        else % no. Add it to the best guesses
-            BestGuesses(size(BestGuesses,1)+1,:) = out.FunEst(numiter,:);
-        end
+        %fprintf('finding current best guess\n')
+        %[out.FunEst(numiter,:),FunVEst] = FindGlobalGPMinimum(BestGuesses,GP,in.xmin,in.xmax);
+        % % is the new point very close to one of the best guesses?
+        %[cv,ci] = min(sum(bsxfun(@minus,out.FunEst(numiter,:)./ell,bsxfun(@rdivide,BestGuesses,ell)).^2,2)./D);
+        %if cv < 2.5e-1 % yes. Replace it with this improved guess
+        %    BestGuesses(ci,:)  = out.FunEst(numiter,:);
+        %else % no. Add it to the best guesses
+        %    BestGuesses(size(BestGuesses,1)+1,:) = out.FunEst(numiter,:);
+        %end
     
         
         %% evaluate over contexts
         fprintf('evaluate over contexts\n')
-        [xx, xy] = meshgrid(linspace(in.xmin(1),in.xmax(1),50)', linspace(in.xmin(2),in.xmax(2),50)');
-        theta_vec = [];
+        plot_st_vect = evalvectfun(in.xmin(sti), in.xmax(sti), params.Neval(sti));
+        plot_se_vect = evalvectfun(in.xmin(sei), in.xmax(sei), params.Neval(sei));
+        %s_cell = evalgridfun(xmin([sti sei]), xmax([sti sei]), params.Neval([sti sei]));
+
+        s_vec = zeros(prod(params.Neval([sti sei])),st_dim+se_dim);
+        theta_vec = zeros(prod(params.Neval([sti sei])),th_dim);
+        %val_vec = zeros(size(theta_vec,1),1);
         
-        for i_se=1:length(s_vec)
-            [theta, val] = ACESpolicy(GP, s_vec(i_se,:), [in.xmin(2)' in.xmax(2)']);    
-            theta_vec(i_se, :) = theta;
+        k=1;
+        for i=1:size(plot_st_vect,1)
+            %if st_dim
+                GPrel = in.MapFunc(GP, plot_st_vect(i,:));
+            %else
+            %    GPrel = GP;
+            %end
+            for j=1:size(plot_se_vect,1)
+                [theta, val] = ACESpolicy(GPrel, plot_se_vect(j,:), [in.xmin(thi)' in.xmax(thi)']);
+                theta_vec(k,:) = theta;
+                s_vec(k,:) = [plot_st_vect(i,:) plot_se_vect(j,:)];
+                k=k+1;
+            end
         end
         val_vec = in.f([s_vec theta_vec]);
         current_performance = sum(val_vec)
         out.val_vec(:,numiter) = val_vec;
         
-        figure
-        real_val = arrayfun(@(a,b)(in.f([a b])), xx, xy);
-        mesh(xx, xy, real_val)
-        
-        hold on;
-        scatter3(GP.x(:,1), GP.x(:,2), in.f(GP.x), 'ro');
-        scatter3(s_vec(:,1), theta_vec(:,1), val_vec, 'y*');
-        %scatter3(out.FunEst(numiter,1), out.FunEst(numiter,2), in.f(out.FunEst(numiter,:)), 'r*');    
+        %% plot current theta policy
+        if plotswitch.policy
+            plotgrid = evalgridfun(in.xmin(end-1:end), in.xmax(end-1:end), [100 100]);
+            real_val = arrayfun(@(varargin)(in.f([varargin{end-(th_dim==1):end}])), plotgrid{:});
 
-        figure
-        [my_m my_s2] = gp(GP.hyp, [], [], GP.covfunc, GP.likfunc, GP.x, GP.y, [xx(:) xy(:)]);
-         mesh(xx,xy, reshape(my_m, size(xx)));
-        hold on;
-        scatter3(GP.x(:,1), GP.x(:,2), in.f(GP.x), 'ro');
-        [my_m my_s2] = gp(GP.hyp, [], [], GP.covfunc, GP.likfunc, GP.x, GP.y, [s_vec theta_vec]);
-        scatter3(s_vec(:,1), theta_vec(:,1), my_m, 'y*');
-        %scatter3(out.FunEst(numiter,1), out.FunEst(numiter,2), in.f(out.FunEst(numiter,:)), 'r*');    
-                
+            figure
+            mesh(plotgrid{1}, plotgrid{2}, real_val);      
+            hold on;
+            GP_full_x = repmat(plot_x, size(GP.x,1), 1);
+            GP_full_x(:,[sei thi]) = GP.x;
+            scatter3(GP.x(:,end-1), GP.x(:,end), in.f(GP_full_x), 'ro');
+            if (th_dim == 1)
+                if(s_dim == 1)
+                    tempi = 1:size(s_vec,1);
+                else
+                    tempi = s_vec(:,1:s_dim-1)==plot_x(1:s_dim-1);
+                end
+                scatter3(s_vec(tempi,end), theta_vec(tempi,1), val_vec(tempi,:), 'y*');
+            end
+            %scatter3(out.FunEst(numiter,1), out.FunEst(numiter,2), in.f(out.FunEst(numiter,:)), 'r*');    
+
+            %figure
+            %[my_m my_s2] = gp(GP.hyp, [], [], GP.covfunc, GP.likfunc, GP.x, GP.y, [xx(:) xy(:)]);
+            % mesh(xx,xy, reshape(my_m, size(xx)));
+            %hold on;
+            %scatter3(GP.x(:,1), GP.x(:,2), in.f(GP.x), 'ro');
+            %[my_m my_s2] = gp(GP.hyp, [], [], GP.covfunc, GP.likfunc, GP.x, GP.y, [s_vec theta_vec]);
+            %scatter3(s_vec(:,1), theta_vec(:,1), my_m, 'y*');
+            % %scatter3(out.FunEst(numiter,1), out.FunEst(numiter,2), in.f(out.FunEst(numiter,:)), 'r*');    
+        end  
         drawnow;
         
         %% optimize hyperparameters
@@ -420,3 +451,33 @@ out.GP       = GP;
 %out.MeanEsts = MeanEsts;
 %out.MAPEsts  = MAPEsts;
 %out.logP     = logP;
+
+end
+
+function evalgrid = evalgridfun(xmin, xmax, Neval)
+    if isempty(xmin)
+        evalgrid = cell(1,0);
+        return
+    end
+    evalgrid = cell(1, length(xmin));
+    gridvect = cell(1, length(xmin));
+    for iiii=1:length(xmin)
+        gridvect{iiii} = linspace(xmin(iiii), xmax(iiii), Neval(iiii))';
+    end
+    [evalgrid{:}] = ndgrid(gridvect{:});
+end
+
+function evalvect = evalvectfun(xmin, xmax, Neval)
+    if isempty(xmin)
+        evalvect = zeros(1,0);
+        return
+    end
+    evalgrid = cell(1, length(xmin));
+    gridvect = cell(1, length(xmin));
+    for iiii=1:length(xmin)
+        gridvect{iiii} = linspace(xmin(iiii), xmax(iiii), Neval(iiii))';
+    end
+    [evalgrid{:}] = ndgrid(gridvect{:});
+    
+    evalvect = [evalgrid{:}(:)];
+end
