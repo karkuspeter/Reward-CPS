@@ -10,9 +10,8 @@ end
 st_dim = size(st_trials, 2);
 se_dim = size(se_trials, 2);
 
-x_st = x(1:st_dim);
-x_se = x(st_dim+1 : st_dim+se_dim);
-x_th = x(st_dim + se_dim + 1 : end);
+x_se = x(1 : se_dim);
+x_th = x(se_dim + 1 : end);
 
 % get nearest Nn se context from se_trials
 if se_dim
@@ -24,7 +23,7 @@ if se_dim
     [sortedX, sortedIndices] = sort(dm,'ascend');
     rel_se_inds = sortedIndices(1:params.Nn);
 else
-    rel_se_inds = zeros(1,0);
+    rel_se_inds = 1;
 end
 
 %linearize indexes to execute for st and se, so we can use parfor

@@ -2,15 +2,9 @@
 addpath ./ACES
 
 % set up prior belief
-N               = 2; % number of input dimensions
-in.covfunc      = {@covSEard};       % GP kernel
-in.covfunc_dx   = {@covSEard_dx_MD}; % derivative of GP kernel. You can use covSEard_dx_MD and covRQard_dx_MD if you use Carl's & Hannes' covSEard, covRQard, respectively.
-
+in = struct;
 % should the hyperparameters be learned, too?
 in.LearnHypers  = false; % yes.
-in.HyperPrior   = @SEGammaHyperPosterior;
-
-in.MaxEval      = 10;    % Horizon (number of evaluations allowed)
 
 % constraints defining search space:
 % objective function:
@@ -28,6 +22,16 @@ hyp.cov         = log([0.3^2; 0.45^2; 1]); % hyperparameters for the kernel
 %TODO these are not normalized!
 hyp.lik         = log([3e-3]); % noise level on signals (log(standard deviation));
 in.hyp          = hyp;  % hyperparameters, with fields .lik (noise level) and .cov (kernel hyperparameters), see documentation of the kernel functions for details.
+
+
+problem = ToyCannon1D2D;
+in.xmin = [problem.theta_bounds(1,1)' ];
+in.xmax = [problem.theta_bounds(1,2)' ]
+in.f = @(x)(problem.sim_func(0.5*10, [x(:,1) 1])/5-0.4);
+hyp.cov         = log([0.45^2; 1]); % hyperparameters for the kernel
+%TODO these are not normalized!
+hyp.lik         = log([3e-3]); % noise level on signals (log(standard deviation));
+in.hyp          = hyp;  % hyperparameters, with fields .lik (noise level) and .cov (kernel hyperparameters), see documentation of the kernel functions for details.
 in.MapFunc = @(GP,st)(MapFunc(GP, st, @(s, x, out)(problem.r_func(s*10, [x 1], out))));
 
 % in.xmin = problem.theta_bounds(:,1)';
@@ -37,15 +41,15 @@ in.MapFunc = @(GP,st)(MapFunc(GP, st, @(s, x, out)(problem.r_func(s*10, [x 1], o
 rng(1, 'twister');
 
 % Initial samples
-initx = [];
-inity= [];
-for i=1:5
-    initx(i, :) = ((in.xmax'-in.xmin').*rand(size(in.xmin',1),1) + in.xmin');
-end
-initx = [initx; 0.7065  1.3708];
-in.x = initx;
-inity = in.f(initx);
-in.y = inity;
+% initx = [];
+% inity= [];
+% for i=1:5
+%     initx(i, :) = ((in.xmax'-in.xmin').*rand(size(in.xmin',1),1) + in.xmin');
+% end
+% initx = [initx; 0.7065  1.3708];
+% in.x = initx;
+% inity = in.f(initx);
+% in.y = inity;
 
 %%replace for reproducing something
 
@@ -57,14 +61,16 @@ in.y = inity;
     0.4968    0.7432;
     0.7065    1.3708;
     0.2667    0.0856; ];
-in.y = [   
-    -0.1540;
-    0.2798;
-   -0.9265;
-    0.1075;
-    0.0265;
-   -0.3270;
-   -0.8067];
+in.x = in.x(:,1); %for st mode
+[in.y in.obs] = in.f(in.x);
+% in.y = [   
+%     -0.1540;
+%     0.2798;
+%    -0.9265;
+%     0.1075;
+%     0.0265;
+%    -0.3270;
+%    -0.8067];
 
 %%
 [xx, xy] = meshgrid([in.xmin(1):0.05:in.xmax(1)], [in.xmin(2):0.01:in.xmax(2)]);
@@ -119,4 +125,3 @@ end;
 
 %GP = result.GP;
 %[ymu, ysigma] = gp(GP.hyp, 'infExact', 
-
