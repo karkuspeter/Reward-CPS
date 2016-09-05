@@ -25,7 +25,11 @@ classdef ToyCannon1D2D < ProblemInterface
         function [r, result] = sim_eval_func(obj, context, theta)
             [r, result] = obj.toycannon.Simulate(context(:,1), theta(:,1), theta(:,2), 0);
         end
-        
+              
+        function [r, result] = sim_plot_func(obj, varargin)
+            [r, result] = obj.sim_eval_func(varargin{:});
+        end
+      
         function [theta_vec, r_vec] = optimal_values(obj, datapoints, contextpoints)
             
             theta_vec = [];
