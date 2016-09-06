@@ -1,4 +1,4 @@
-classdef ToyCannon1D2D < ProblemInterface
+classdef ToyCannonBase < ProblemInterface
     %Toy cannon problem with only angle parameter to find
     properties
         toycannon;
@@ -6,8 +6,8 @@ classdef ToyCannon1D2D < ProblemInterface
     end
     
     methods
-        function obj=ToyCannon1D2D()
-            obj.toycannon = ToyCannon;
+        function obj=ToyCannonBase()
+            obj.toycannon = ToyCannonSimulator;
 
             obj.theta_bounds = [0.01, pi/2-0.2; 0.1, 3];
             obj.st_bounds = [1, 11];

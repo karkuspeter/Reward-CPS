@@ -1,4 +1,4 @@
-classdef ToyCannon
+classdef ToyCannonSimulator
     % Class for toy cannon problem
     %   2D cannon with random hills
     
@@ -16,7 +16,7 @@ classdef ToyCannon
     end
     
     methods
-      function obj = ToyCannon()
+      function obj = ToyCannonSimulator()
          
          obj.angleNoise = 1/180*pi;
          obj.s_bounds = [0, 12];
