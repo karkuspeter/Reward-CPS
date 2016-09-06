@@ -182,7 +182,7 @@ while ~converged && (numiter < params.Niter)
     
     zb = samplerange(params.xmin(thi), params.xmax(thi), params.Nbpool);
     
-    lmb = -log(norm([params.xmin(thi)' params.xmax(thi)']))*ones(params.Nb,1);  %log of uniform measure, |I|^-1
+    lmb = log(params.Nb); %= -log(1/Nb) %log of uniform measure, |I|^-1
     
     %     if th_dim == 1
     %        [zt,sorti] = sort(zb(:,end)); %theta line
@@ -216,9 +216,15 @@ while ~converged && (numiter < params.Niter)
             [~, ind] = sort(u, 'descend');
             sel = ind(1:params.Nb); %select first Nb
             zb_vec(:,:,i_se, i_st) = zb_rel(sel, :);
-            lmb_vec(:,:,i_se, i_st) = lmb;% + log(u(sel));
+            % we sampled proportional to the current logP
+            % more precisely, the probabilites are proportional to the Beta distr. mean
+            logPsel = -log((1+(beta+1)./(alpha+1)));   %1/(1+b/a)
+            
+            
             %TODO i dont understand these weights
             logP_vec(:,:,i_se, i_st) = logP(sel,:) - logsumexp(logP(sel,:));
+            lmb_vec(:,:,i_se, i_st) = lmb; %+ logPsel(sel) - logsumexp(logPsel(sel));% + log(u(sel));
+            
             if (false)
                 figure
                 scatter(zb_rel, exp(logP))
@@ -385,7 +391,7 @@ while ~converged && (numiter < params.Niter)
         mesh(xx, xy, aces_values);
         
         hold on;
-        scatter3(GP_full_x(:,end-1), GP_full_x(:,end), max(max(aces_values)), 'ro');
+        scatter3(GP_full_x(:,end-1), GP_full_x(:,end), ones(size(GP.x,1),1)*max(max(aces_values)), 'ro');
         xatmin1full = plot_x;
         xatmin1full([sei thi]) = xatmin1;
         xatmin2full = plot_x;
