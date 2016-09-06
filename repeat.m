@@ -1,10 +1,11 @@
 if ~exist('no_params') || no_params == 0
     repeats = 2;
     keep_prev = 0;
-    spider_func = @RBOCPS;
+    spider_func = @MyEntropySearch; %@RBOCPS;
     show_func = @ShowRepeatResults;
     reward_name = 'R_mean';
     run_struct = struct('output_off',1,'method',2);
+    NeedNewFigure = true;
 end
 
 if (~keep_prev) || ~exist(stat_vec)
@@ -34,6 +35,7 @@ end
 rep_stats.Rcumm_mean = mean(cumm_rew_vec,3);
 rep_stats.Rcumm_std = std(cumm_rew_vec,0,3);
 rep_stats.Rand_seed = seed_vec;
+rep_stats.stat_vec = stat_vec;
 
 % compue mean and std of everything
 mean_linstat = linstat_vec(1);
@@ -54,6 +56,8 @@ for i=1:numel(fields)
 end
 rep_stats.mean_linstat = mean_linstat;
 rep_stats.std_linstat = std_linstat;
-
-
+   
+if exist('NeedNewFigure') && NeedNewFigure 
+    figure
+end
 show_func()
