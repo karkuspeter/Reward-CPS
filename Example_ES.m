@@ -25,7 +25,22 @@ in.LearnHypers  = false; % yes.
 
 %% according to matching format
 
-problem = ToyCannon1D1Des;
+% problem = ToyCannon1D0D1D;
+% rng(1, 'twister');
+% %replace for reproducing something
+% in.GP = struct;
+% in.GP.x=[
+%     0.5170    0.9902;
+%     0.1001    0.4214;
+%     0.2468    0.1357;
+%     0.2863    0.4802;
+%     0.4968    0.7432;
+%     0.7065    1.3708;
+%     0.2667    0.0856; ];
+% in.GP.x = in.GP.x(:,2); %for st mode
+% [in.GP.y, in.GP.obs] = problem.sim_func([ones(size(in.GP.x,1),1)*0.6 in.GP.x]);
+
+in.problem = ToyCannon0D1D1D;
 rng(1, 'twister');
 %replace for reproducing something
 in.GP = struct;
@@ -37,18 +52,7 @@ in.GP.x=[
     0.4968    0.7432;
     0.7065    1.3708;
     0.2667    0.0856; ];
-in.GP.x = in.GP.x(:,2); %for st mode
-[in.GP.y, in.GP.obs] = problem.sim_func([ones(size(in.GP.x,1),1)*0.6 in.GP.x]);
-% Initial samples
-% initx = [];
-% inity= [];
-% for i=1:5
-%     initx(i, :) = ((in.xmax'-in.xmin').*rand(size(in.xmin',1),1) + in.xmin');
-% end
-% initx = [initx; 0.7065  1.3708];
-% in.x = initx;
-% inity = in.f(initx);
-% in.y = inity;
+[in.GP.y, in.GP.obs] = in.problem.sim_func(in.GP.x);
 
 %%
 %[xx, xy] = meshgrid([in.xmin(1):0.05:in.xmax(1)], [in.xmin(2):0.01:in.xmax(2)]);

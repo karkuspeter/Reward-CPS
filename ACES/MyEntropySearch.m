@@ -1,9 +1,10 @@
 function [ stats, linstat, params ] = MyEntropySearch(input_params)
-% TODO question: at iter 4 with ExampleES the prediction gets worse becouse
-% there is theta smaple missing from 0.01 and GP changes a lot.
-% ACES functtion why doesnt prefer sample from there?
-% Probably because of poor zb representers. Pmin looks 1 and 0 only -- need
-% to get more representers near pmin
+% TODO: representer sampling not great yet (Thompson?) and it is not
+% compensated in the Loss function (not added to lmb). Due to this entropy
+% change will be large where lots of points are around the new sample but
+% will be little where there are few points around new sample. This is
+% totally wrong.
+% Try finding out how they did Thompson, or try using EI as in ES paper
 
 
 % probabilistic line search algorithm that adapts it search space
@@ -26,7 +27,7 @@ function [ stats, linstat, params ] = MyEntropySearch(input_params)
 fprintf 'starting entropy search.\n'
 
 params = struct(...
-    'problem', ToyCannon1D1Des, ...
+    'problem', ToyCannon1D0D1D, ...
     'GP', struct, ... %user may override this with initial samples, etc
     ...
     'S', 1000, ... %how many samples to take from GP posterior to estimate pmin
@@ -39,8 +40,6 @@ params = struct(...
     'Neval', [20, 100], ... %evaluation points over contexts
     'DirectEvals1', 30, ...  % number of maximum function evaluations for DIRECT search
     'DirectEvals2', 0, ...
-    'st_dim', 1, ...
-    'se_dim', 0, ...
     ... % GP parameters. only used if GP is not provided. covarianve values
     'sigmaM0', 0.45^2, ...%[0.01; 0.01],... %; 0.1], ... % lengthscale, how much inputs should be similar in that dim.
     ...               % i.e. how far inputs should influence each other
@@ -87,8 +86,10 @@ plot_x = (params.xmax + params.xmin)/2; %this will be used when not plotting spe
 
 % dimensionality helper variables
 D = params.D;
-st_dim = params.st_dim;
-se_dim = params.se_dim;
+st_dim = size(problem.st_bounds,1);
+se_dim = size(problem.se_bounds,1);
+params.st_dim = st_dim;
+params.se_dim = se_dim;
 s_dim = params.st_dim + params.se_dim;
 th_dim = D-s_dim;
 if s_dim ~= 1
@@ -384,12 +385,12 @@ while ~converged && (numiter < params.Niter)
         mesh(xx, xy, aces_values);
         
         hold on;
-        scatter3(GP_full_x(:,end-1), GP_full_x(:,end), problem.sim_plot_func(GP_full_x), 'ro');
+        scatter3(GP_full_x(:,end-1), GP_full_x(:,end), max(max(aces_values)), 'ro');
         xatmin1full = plot_x;
         xatmin1full([sei thi]) = xatmin1;
         xatmin2full = plot_x;
         xatmin2full([sei thi]) = xatmin2;
-        scatter3(xatmin1full(end-1), xatmin1full(end), max(minval1, min(min(aces_values))), 'y*');
+        scatter3(xatmin1full(end-1), xatmin1full(end), max(minval1, min(min(aces_values))), 'b*');
         scatter3(xatmin2full(end-1), xatmin2full(end), max(minval2, min(min(aces_values))), 'r*');
         %scatter3(xstart(:,1), xstart(:,2), arrayfun(@(a,b)aces_f([a b]), xstart(:,1), xstart(:,2)), 'b*');
         drawnow;
@@ -439,6 +440,8 @@ while ~converged && (numiter < params.Niter)
                 GPrel = problem.MapGP(GP, plot_x(sti));
                 xy(i,:) = zb_vec(:,end,ind(i),end);
                 pmin_values(i,:) = EstPmin(GPrel, [xx(i,:)' xy(i,:)'], 1000, randn(size(xy,2),1000));
+                plot3(xx(i,:), xy(i,:), exp(pmin_values(i,:)));
+                scatter3(xx(i,:), xy(i,:), exp(pmin_values(i,:)), '.');
             end
             %%plot3(repmat(xx(i),1,in.Nb), pmin_values(i,:), zz');
         end
@@ -564,7 +567,7 @@ while ~converged && (numiter < params.Niter)
             full_s2 = reshape(full_s2, size(plotgrid{1}));
             
             [curr_m curr_s2] = gp(GPrel.hyp, [], [], GPrel.covfunc, GPrel.likfunc, GPrel.x, GPrel.y, ...
-                [s_vec(sei) theta_vec]);
+                [s_vec(:,sei) theta_vec]);
         end
         
         figure
@@ -578,9 +581,9 @@ while ~converged && (numiter < params.Niter)
     drawnow;
     
     %% FOR DEBUG
-    %print a specific GP mapping
+    %print a specific GP mapping for ST
     if (false)
-        i=9;
+        i=90;
         GPrel = problem.MapGP(GP, eval_st_vect(i,:));
         figure
         hold on
@@ -592,6 +595,24 @@ while ~converged && (numiter < params.Niter)
         plot(plotgrid{2}(i,:)', m-2*s2, 'r-');
         scatter(theta_vec(i,end), val_vec(i,end), 'r*');
         scatter(theta_vec(i,end), pred_vec(i,end), 'y*');
+    end
+    
+    %print a specific GP mapping for SE
+    if (false)
+        i=90;
+        GPrel = GP;
+        %GPrel.x = [GPrel.x; plotgrid{1}(i,1), 0.5];
+        %GPrel.y = [GPrel.y; 0];
+        figure
+        hold on
+        scatter3(GPrel.x(:,1), GPrel.x(:,2), GPrel.y);
+        [m s2] = gp(GPrel.hyp, [], [], GPrel.covfunc, GPrel.likfunc, GPrel.x, GPrel.y,...
+            [plotgrid{1}(i,:)' plotgrid{2}(i,:)']);
+        plot3(plotgrid{1}(i,:)', plotgrid{2}(i,:)', m);
+        plot3(plotgrid{1}(i,:)', plotgrid{2}(i,:)', m+2*s2, 'r-');
+        plot3(plotgrid{1}(i,:)', plotgrid{2}(i,:)', m-2*s2, 'r-');
+        %scatter(theta_vec(i,end), val_vec(i,end), 'r*');
+        %scatter(theta_vec(i,end), pred_vec(i,end), 'y*');
     end
     
     %% optimize hyperparameters
