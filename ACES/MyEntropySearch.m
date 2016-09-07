@@ -6,6 +6,11 @@ function [ stats, linstat, params ] = MyEntropySearch(input_params)
 % totally wrong.
 % Try finding out how they did Thompson, or try using EI as in ES paper
 
+% there are peaks on the bounds now on the weighted pmin. it shouldnt be because of non-uniform sampling
+% problem might be with GP hyperparameters? assumes two strong correlation
+% along theta: so the conditional posterior on a context is very smooth:
+% always gives bound as minimum. with lower corrleation there should be
+% more wiggling 
 
 % probabilistic line search algorithm that adapts it search space
 % stochastically, by sampling search points from their marginal probability of
@@ -27,7 +32,7 @@ function [ stats, linstat, params ] = MyEntropySearch(input_params)
 fprintf 'starting entropy search.\n'
 
 params = struct(...
-    'problem', ToyCannon1D0D1D, ...
+    'problem', ToyCannon0D1D1D, ...
     'GP', struct, ... %user may override this with initial samples, etc
     ...
     'S', 1000, ... %how many samples to take from GP posterior to estimate pmin
@@ -38,8 +43,8 @@ params = struct(...
     'Nb', 20, ... %number of representers for p_min over theta space generated with Thompson sampling
     'Nbpool', 500, ... %randomply chosen theta value pool for Thompson sampling
     'Neval', [20, 100], ... %evaluation points over contexts
-    'DirectEvals1', 30, ...  % number of maximum function evaluations for DIRECT search
-    'DirectEvals2', 0, ...
+    'DirectEvals1', 40, ...  % number of maximum function evaluations for DIRECT search
+    'DirectEvals2', 40, ...
     ... % GP parameters. only used if GP is not provided. covarianve values
     'sigmaM0', 0.45^2, ...%[0.01; 0.01],... %; 0.1], ... % lengthscale, how much inputs should be similar in that dim.
     ...               % i.e. how far inputs should influence each other
@@ -48,7 +53,7 @@ params = struct(...
     'sigma0', sqrt(0.003), ... % noise level on signals (standard deviation);
     ... %TODO these are not normalized!
     'Algorithm', 1, ...   % 1 R-ACES
-    'LearnHypers', false, ...
+    'LearnHypers', true, ...
     'HyperPrior',@SEGammaHyperPosterior,... %for learning hyperparameters
     'Niter', 9, ...
     'InitialSamples', 3, ...  %minimum 1
@@ -58,9 +63,12 @@ params = struct(...
     'ConvergedFunc', @()(false), ... %this will be called at end of iteration
     'output_off', 0);
 
+PlotModulo = struct('ACES', 1, 'pmin', 9, 'policy', 1);
+
 if (exist('input_params'))
     params = ProcessParams(params, input_params);
 end
+
 
 %% obsolate entropy search variables
 %if ~isfield(params,'likfunc'); params.likfunc = @likGauss; end; % noise type
@@ -140,6 +148,8 @@ GP.invL = inv(diag(exp(GP.hyp.cov(1:end-1)))); %inverse of length scales
 GP.K   = k_matrix(GP,GP.x) + diag(GP_noise_var(GP,GP.y));
 GP.cK  = chol(GP.K);
 
+hyp_initial = GP.hyp;
+
 %% construct evaluation grid
 evalgrid = evalgridfun(params.xmin, params.xmax, params.Neval);
 if params.ReturnOptimal
@@ -152,8 +162,6 @@ end
 
 if params.output_off
     PlotModulo = struct('ACES', 0, 'pmin', 0, 'policy', 0);
-else
-    PlotModulo = struct('ACES', 1, 'pmin', 1, 'policy', 1);
 end
 
 
@@ -173,14 +181,15 @@ while ~converged && (numiter < params.Niter)
     fprintf('\n');
     disp(['iteration number ' num2str(numiter)])
     %     try
-    st_trials = samplerange(params.xmin(sti), params.xmax(sti), params.Ntrial_st);
-    se_trials = samplerange(params.xmin(sei), params.xmax(sei), params.Ntrial_se);
+    st_trials = sort(samplerange(params.xmin(sti), params.xmax(sti), params.Ntrial_st));
+    se_trials = sort(samplerange(params.xmin(sei), params.xmax(sei), params.Ntrial_se));
     %TODO: replace with sampling distribution that tries to cover range
     %rather than picking independently
     
     
     
     zb = samplerange(params.xmin(thi), params.xmax(thi), params.Nbpool);
+    zb = sort(zb);
     
     lmb = log(params.Nb); %= -log(1/Nb) %log of uniform measure, |I|^-1
     
@@ -214,24 +223,59 @@ while ~converged && (numiter < params.Niter)
             beta = 200-alpha;
             u = betarnd(alpha+1, beta+1);
             [~, ind] = sort(u, 'descend');
-            sel = ind(1:params.Nb); %select first Nb
+            sel = sort(ind(1:params.Nb)); %select first Nb
             zb_vec(:,:,i_se, i_st) = zb_rel(sel, :);
             % we sampled proportional to the current logP
             % more precisely, the probabilites are proportional to the Beta distr. mean
             logPsel = -log((1+(beta+1)./(alpha+1)));   %1/(1+b/a)
-            
+            logPsel = logPsel(sel);
             
             %TODO i dont understand these weights
-            logP_vec(:,:,i_se, i_st) = logP(sel,:) - logsumexp(logP(sel,:));
+            %logP_vec(:,:,i_se, i_st) = logP(sel,:) - logsumexp(logP(sel,:));
+            % this was not good: rescaling is not accurate due to P(x)=0-s.
+            % need to reestimate
+            logP_vec(:,:,i_se, i_st) = EstPmin(GP_cell{i_st}, zb_vec(:,:,i_se, i_st), params.S, randn(params.Nb, params.S));
+            
             lmb_vec(:,:,i_se, i_st) = lmb; %+ logPsel(sel) - logsumexp(logPsel(sel));% + log(u(sel));
+            
+            if th_dim == 1
+                %note: need to be sorted if not already (1+ dim)
+                zt = zb_vec(:,end,i_se, i_st); %theta line
+                vals = [(zt(2)-zt(1))/2 + zt(1)-params.xmin(end);
+                    (zt(3:end) - zt(1:end-2))/2;
+                    params.xmax(end) - zt(end) + (zt(end)-zt(end-1))/2];
+                %vals(sorti) = vals; %restore order
+                lmb_vec(:,:,i_se, i_st) = lmb_vec(:,:,i_se, i_st) - (log(vals) - logsumexp(log(vals) - log(params.Nb)));
+                %TODO this is not good, need better representers
+            else
+                disp('Note: for theta_dim > 1 this is not great\n');
+            end
+            %alpha = 200*exp(logP_vec(:,:,i_se, i_st));
+            %beta = 200-alpha;
+            %logPsel2 = -log((1+(beta+1)./(alpha+1)));   %1/(1+b/a)
+            
+            %[-(log(vals) - logsumexp(log(vals))), -logPsel - logsumexp(-logPsel) -logPsel2 - logsumexp(-logPsel2)]
+
+            % new strategy (sample from current Pmin ==? Thompson) 
+            zbnew = zeros(params.Nb, se_dim+th_dim);
+            for i=1:params.Nb
+                pool = samplerange(params.xmin(thi), params.xmax(thi), params.Nbpool);
+                extpool = [repmat(se_trials(i_se,:),size(pool,1),1) pool];
+                [sample ind] = SamplePmin(GP_cell{i_st}, extpool);
+                zbnew(i, :) = sample;
+            end
+            w = EstPmin(GP_cell{i_st}, zbnew, params.S, randn(params.Nb, params.S));
+            [~, ind] = sort(zbnew(:,end));
+            zbnew = zbnew(ind, :);
             
             if (false)
                 figure
-                scatter(zb_rel, exp(logP))
+                plot(zb_rel(:,end), exp(logP))
                 hold on
-                scatter(zb_rel(sel), exp(logP(sel)))
-                figure
-                scatter(zb_rel(sel), u(sel))
+                scatter(zbnew(:,end), zeros(params.Nb,1));
+                %scatter(zb_rel(sel,end), exp(logP(sel)))
+                %figure
+                %scatter(zb_rel(sel,end), u(sel))
             end
         end
         
@@ -361,7 +405,7 @@ while ~converged && (numiter < params.Niter)
     [minval1,xatmin1,hist] = Direct(struct('f', @(x)(aces_f(x'))), [params.xmin([sei thi])' params.xmax([sei thi])'], struct('showits', 1, 'maxevals', params.DirectEvals1));
     if params.DirectEvals2
         xrange = [params.xmax([sei thi])' - params.xmin([sei thi])']/10;
-        xrange = [max(xatmin1-xrange,params.xmin([sei thi])) min(xatmin1+xrange,params.xmax([sei thi])) ];
+        xrange = [max(xatmin1-xrange,params.xmin([sei thi])') min(xatmin1+xrange,params.xmax([sei thi])') ];
         [minval2,xatmin2,hist] = Direct(struct('f', @(x)(aces_f(x'))), xrange, struct('showits', 1, 'maxevals', params.DirectEvals2));
     else
         minval2 = minval1;
@@ -371,6 +415,7 @@ while ~converged && (numiter < params.Niter)
     
     GP_full_x = repmat(plot_x, size(GP.x,1), 1);
     GP_full_x(:,[sei thi]) = GP.x;
+    
     %% print ACES function
     if PlotModulo.ACES && ~mod(numiter, PlotModulo.ACES)
         fprintf('plot ACES function\n')
@@ -399,6 +444,21 @@ while ~converged && (numiter < params.Niter)
         scatter3(xatmin1full(end-1), xatmin1full(end), max(minval1, min(min(aces_values))), 'b*');
         scatter3(xatmin2full(end-1), xatmin2full(end), max(minval2, min(min(aces_values))), 'r*');
         %scatter3(xstart(:,1), xstart(:,2), arrayfun(@(a,b)aces_f([a b]), xstart(:,1), xstart(:,2)), 'b*');
+        
+        %plot current entropy over contexts
+        if se_dim == 1
+            Hvec = zeros(size(se_trials,1),1);
+            for i=1:size(se_trials,1)
+                Hvec(i) = - sum(exp(logP_vec(:,:,i,1)) .* (logP_vec(:,:,i,1) + lmb));           % current Entropy 
+            end
+            figure
+            plot(se_trials(:,end), Hvec);
+            hold on
+            scatter(GP.x(:,sei(end)), ones(size(GP.x,1),1)*mean(Hvec))
+            
+        end
+
+        
         drawnow;
     end
     
@@ -424,9 +484,10 @@ while ~converged && (numiter < params.Niter)
         caxis([0, 0.5]);
         
         %plot over the representers used
-        figure
-        caxis([0, 0.5]);
+        f1 = figure;
         hold on
+        f2 = figure;
+        hold on;
         if se_dim == 0 && th_dim == 1
             [~, ind] = sort(st_trials(:,end));
             [xx xy] = ndgrid(st_trials(ind,end), zeros(params.Nb,1));
@@ -435,10 +496,16 @@ while ~converged && (numiter < params.Niter)
                 GPrel = problem.MapGP(GP, [plot_x(1:st_dim-1) xx(i,1)]);
                 xy(i,:) = sort(zb_vec(:,end,1,ind(i)));
                 pmin_values(i,:) = EstPmin(GPrel, [xy(i,:)'], 1000, randn(size(xy,2),1000));
+                figure(f1);
                 plot3(xx(i,:), xy(i,:), exp(pmin_values(i,:)));
                 scatter3(xx(i,:), xy(i,:), exp(pmin_values(i,:)), '.');
+                figure(f2);
+                logw = lmb_vec(:,:,1,ind(i)) - lmb;
+                plot3(xx(i,:), xy(i,:), exp(pmin_values(i,:)+logw'));   
+                scatter3(xx(i,:), xy(i,:), exp(pmin_values(i,:)+logw'), '.');
             end
         else
+
             [~, ind] = sort(se_trials(:,end));
             [xx xy] = ndgrid(se_trials(ind,end), zeros(params.Nb,1));
             pmin_values = zeros(size(xx));
@@ -446,8 +513,14 @@ while ~converged && (numiter < params.Niter)
                 GPrel = problem.MapGP(GP, plot_x(sti));
                 xy(i,:) = zb_vec(:,end,ind(i),end);
                 pmin_values(i,:) = EstPmin(GPrel, [xx(i,:)' xy(i,:)'], 1000, randn(size(xy,2),1000));
+                figure(f1);
                 plot3(xx(i,:), xy(i,:), exp(pmin_values(i,:)));
                 scatter3(xx(i,:), xy(i,:), exp(pmin_values(i,:)), '.');
+                %reweighted
+                figure(f2);
+                logw = lmb_vec(:,:,ind(i),end) - lmb;
+                plot3(xx(i,:), xy(i,:), exp(pmin_values(i,:)+logw'));   
+                scatter3(xx(i,:), xy(i,:), exp(pmin_values(i,:)+logw'), '.');
             end
             %%plot3(repmat(xx(i),1,in.Nb), pmin_values(i,:), zz');
         end
@@ -625,7 +698,7 @@ while ~converged && (numiter < params.Niter)
     if params.LearnHypers
         minimizeopts.length    = 10;
         minimizeopts.verbosity = 1;
-        GP.hyp = minimize(GP.hyp,@(x)params.HyperPrior(x,GP.x,GP.y),minimizeopts);
+        GP.hyp = minimize(hyp_initial,@(x)params.HyperPrior(x,GP.x,GP.y),minimizeopts);
         GP.K   = k_matrix(GP,GP.x) + diag(GP_noise_var(GP,GP.y));
         GP.cK  = chol(GP.K);
         fprintf 'hyperparameters optimized.'
