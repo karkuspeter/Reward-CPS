@@ -217,46 +217,8 @@ while ~converged && (numiter < params.Niter)
             %             zb_vec(:,:,i_se, i_st) = [repmat(se_trials(i_se,:),params.Nb,1) zb];
             %             lmb_vec(:,:,i_se, i_st) = lmb;
             %             logP_vec(:,:,i_se, i_st) = EstPmin(GP_cell{i_st}, zb_vec(:,:,i_se, i_st), params.S, randn(size(zb,1), params.S));  %joint_min(Mb_vec(:,:,i), Vb_vec(:,:,i), 1);
-            zb_rel = [repmat(se_trials(i_se,:),size(zb,1),1) zb];
-            logP = EstPmin(GP_cell{i_st}, zb_rel, params.S, randn(size(zb,1), params.S));  %joint_min(Mb_vec(:,:,i), Vb_vec(:,:,i), 1);
-            alpha = 200*exp(logP);
-            beta = 200-alpha;
-            u = betarnd(alpha+1, beta+1);
-            [~, ind] = sort(u, 'descend');
-            sel = sort(ind(1:params.Nb)); %select first Nb
-            zb_vec(:,:,i_se, i_st) = zb_rel(sel, :);
-            % we sampled proportional to the current logP
-            % more precisely, the probabilites are proportional to the Beta distr. mean
-            logPsel = -log((1+(beta+1)./(alpha+1)));   %1/(1+b/a)
-            logPsel = logPsel(sel);
             
-            %TODO i dont understand these weights
-            %logP_vec(:,:,i_se, i_st) = logP(sel,:) - logsumexp(logP(sel,:));
-            % this was not good: rescaling is not accurate due to P(x)=0-s.
-            % need to reestimate
-            logP_vec(:,:,i_se, i_st) = EstPmin(GP_cell{i_st}, zb_vec(:,:,i_se, i_st), params.S, randn(params.Nb, params.S));
-            
-            lmb_vec(:,:,i_se, i_st) = lmb; %+ logPsel(sel) - logsumexp(logPsel(sel));% + log(u(sel));
-            
-            if th_dim == 1
-                %note: need to be sorted if not already (1+ dim)
-                zt = zb_vec(:,end,i_se, i_st); %theta line
-                vals = [(zt(2)-zt(1))/2 + zt(1)-params.xmin(end);
-                    (zt(3:end) - zt(1:end-2))/2;
-                    params.xmax(end) - zt(end) + (zt(end)-zt(end-1))/2];
-                %vals(sorti) = vals; %restore order
-                lmb_vec(:,:,i_se, i_st) = lmb_vec(:,:,i_se, i_st) - (log(vals) - logsumexp(log(vals) - log(params.Nb)));
-                %TODO this is not good, need better representers
-            else
-                disp('Note: for theta_dim > 1 this is not great\n');
-            end
-            %alpha = 200*exp(logP_vec(:,:,i_se, i_st));
-            %beta = 200-alpha;
-            %logPsel2 = -log((1+(beta+1)./(alpha+1)));   %1/(1+b/a)
-            
-            %[-(log(vals) - logsumexp(log(vals))), -logPsel - logsumexp(-logPsel) -logPsel2 - logsumexp(-logPsel2)]
-
-            % new strategy (sample from current Pmin ==? Thompson) 
+            %% Sample from current Pmin ==? Thompson sampling
             zbnew = zeros(params.Nb, se_dim+th_dim);
             for i=1:params.Nb
                 pool = samplerange(params.xmin(thi), params.xmax(thi), params.Nbpool);
@@ -264,19 +226,90 @@ while ~converged && (numiter < params.Niter)
                 [sample ind] = SamplePmin(GP_cell{i_st}, extpool);
                 zbnew(i, :) = sample;
             end
-            w = EstPmin(GP_cell{i_st}, zbnew, params.S, randn(params.Nb, params.S));
             [~, ind] = sort(zbnew(:,end));
             zbnew = zbnew(ind, :);
             
-            if (false)
+%             % compute weights (u in paper)
+%             % it should be the actual Pmin, but we cant really represent
+%             % that, exactly thats why we are trying better sampling 
+%             % locations..
+%             nearest_ids = knnsearch(zb, zbnew(:,thi));
+%             w = logP(nearest_ids);
+%             % this is inaccurate: because nearest value fluctuates a lot
+%             % with uniform samples its bad to estimate + for 500 locations
+%             % we sample only 1000 outcomes..
+%             
+%             % option: use K nearest neighboor 
+            
+            % alternativy: explicitly compute widths and use inverse as weights
+            % this wont work for higher dim
+            zt = zbnew(:,end); %theta line
+            vals = [(zt(2)-zt(1))/2 + zt(1)-params.xmin(end);
+                  (zt(3:end) - zt(1:end-2))/2;
+                   params.xmax(end) - zt(end) + (zt(end)-zt(end-1))/2];
+            w = -(log(vals) - logsumexp(log(vals))) ; % no need for logsumexp this is already sums to 1
+            
+            lmb_vec(:,:,i_se, i_st) = lmb + w; % + log(params.Nb);
+            zb_vec(:,:,i_se, i_st) = zbnew;
+
+            if (false) % for debugging
                 figure
+                zb_rel = [repmat(se_trials(i_se,:),size(zb,1),1) zb];
+                logP = EstPmin(GP_cell{i_st}, zb_rel, params.S, randn(size(zb,1), params.S));  %joint_min(Mb_vec(:,:,i), Vb_vec(:,:,i), 1);
                 plot(zb_rel(:,end), exp(logP))
                 hold on
-                scatter(zbnew(:,end), zeros(params.Nb,1));
+                
+                logPthis = EstPmin(GP_cell{i_st}, zbnew, params.S, randn(size(zbnew,1), params.S));  %joint_min(Mb_vec(:,:,i), Vb_vec(:,:,i), 1);
+                scatter(zbnew(:,end), exp(logPthis));
+                heights = exp(logPthis + w); % + log(params.Nb)
+                % rescale hieghts to be comparable with other curve. but
+                % real pmin(x) may have very high values: note that not sum
+                % but integral has to sum to 1
+                heights = heights / sum(heights);
+                
+                scatter(zbnew(:,end), heights , 'b');
+                steps = exp(-w)*(params.xmax(end)-params.xmin(end));
+                for i=1:params.Nb
+                    line([zbnew(i,end)-steps(i)/2 zbnew(i,end)+steps(i)/2], [heights(i)  heights(i)]);
+                end
                 %scatter(zb_rel(sel,end), exp(logP(sel)))
                 %figure
                 %scatter(zb_rel(sel,end), u(sel))
             end
+            
+                        %% Beta distribution strategy
+%              zb_rel = [repmat(se_trials(i_se,:),size(zb,1),1) zb];
+%            logP = EstPmin(GP_cell{i_st}, zb_rel, params.S, randn(size(zb,1), params.S));  %joint_min(Mb_vec(:,:,i), Vb_vec(:,:,i), 1);
+%                        
+%             alpha = 200*exp(logP);
+%             beta = 200-alpha;
+%             u = betarnd(alpha+1, beta+1);
+%             [~, ind] = sort(u, 'descend');
+%             sel = sort(ind(1:params.Nb)); %select first Nb
+%             zb_vec(:,:,i_se, i_st) = zb_rel(sel, :);
+%             % we sampled proportional to the current logP
+%             % more precisely, the probabilites are proportional to the Beta distr. mean
+%             % this was not good: rescaling is not accurate due to P(x)=0-s.
+%             logP_vec(:,:,i_se, i_st) = EstPmin(GP_cell{i_st}, zb_vec(:,:,i_se, i_st), params.S, randn(params.Nb, params.S));
+%             lmb_vec(:,:,i_se, i_st) = lmb; %+ logPsel(sel) - logsumexp(logPsel(sel));% + log(u(sel));
+%             if th_dim == 1
+%                 %note: need to be sorted if not already (1+ dim)
+%                 zt = zb_vec(:,end,i_se, i_st); %theta line
+%                 vals = [(zt(2)-zt(1))/2 + zt(1)-params.xmin(end);
+%                     (zt(3:end) - zt(1:end-2))/2;
+%                     params.xmax(end) - zt(end) + (zt(end)-zt(end-1))/2];
+%                 %vals(sorti) = vals; %restore order
+%                 lmb_vec(:,:,i_se, i_st) = lmb_vec(:,:,i_se, i_st) - (log(vals) - logsumexp(log(vals) - log(params.Nb)));
+%                 %TODO this is not good, need better representers
+%             else
+%                 disp('Note: for theta_dim > 1 this is not great\n');
+%             end
+%             %% recompute weights strategy
+%             %alpha = 200*exp(logP_vec(:,:,i_se, i_st));
+%             %beta = 200-alpha;
+%             %logPsel2 = -log((1+(beta+1)./(alpha+1)));   %1/(1+b/a)
+%             %[-(log(vals) - logsumexp(log(vals))), -logPsel - logsumexp(-logPsel) -logPsel2 - logsumexp(-logPsel2)]
+
         end
         
     end
