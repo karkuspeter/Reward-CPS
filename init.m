@@ -4,5 +4,6 @@ addpath ../../altmany-export_fig-b894ce6;
 addpath ../../TPROD;
 %addpath ../../EmGm;
 addpath ../../EntropySearch;
+addpath ./ACES;
 
 parpool('local');

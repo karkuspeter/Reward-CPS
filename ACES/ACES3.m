@@ -41,7 +41,7 @@ for i=1:size(eval_inds,1)    %parfor on lab PC got double speed with 4 cores, Nn
 
     %just for debugging
     %st = st_trials(i_st,:)
-    %se = se_trials(i_se,:)
+    %se = se_trials(rel_se_inds(eval_inds(:,2)),:)
     
     GP = GP_cell{i_st};
 
