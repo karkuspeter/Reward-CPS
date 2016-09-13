@@ -4,7 +4,7 @@
 
         [x1, x2] = ndgrid(linspace(theta_bounds(1,1),theta_bounds(1,2), 100), ...
             linspace(theta_bounds(2,1),theta_bounds(2,2), 100));
-        %y = arrayfun(@(t1, t2)(problem.sim_eval_func(context, [t1 t2])), x1, x2);
+        %y = arrayfun(@(t1, t2)(problem.sim_eval_func([context, t1, t2])), x1, x2);
         
         y = problem.get_cached_grid(context_id, 100, 100);
         
@@ -15,9 +15,9 @@
                
     else
         
-        [x1, x2] = ndgrid(linspace(bounds(1,1),bounds(1,2), 100), ...
+        [x1, x2] = ndgrid(linspace(bounds(1,1),bounds(1,2), params.Neval(1)), ...
             linspace(bounds(2,1),bounds(2,2), 100));
-        y = arrayfun(@problem.sim_eval_func, x1, x2);
+        y = arrayfun(@(a, b)(problem.sim_eval_func([a b])), x1, x2);
     end
     
         figure(1);
@@ -59,7 +59,11 @@
     mesh(x1, x2, Yplot);
     hold on
     if theta_dim == 1
-        scatter3(Dfull.st, Dfull.theta, Dfull.r);
+        if ~se_dim
+            scatter3(Dfull.st, Dfull.theta, Dfull.r);
+        else
+            scatter3(Dfull.se, Dfull.theta, Dfull.r);
+        end
     else
         scatter3(Dfull.theta(:,1), Dfull.theta(:,2), Rstar);
         scatter3(theta_vec(context_id,1), theta_vec(context_id,2), policy_pred_vec(context_id),'*' );
@@ -98,7 +102,11 @@
     mesh(x1, x2, Yplot);
     hold on
     if theta_dim == 1
-        scatter3(Dfull.st, Dfull.theta, Dfull.r);
+        if se_dim
+            scatter3(Dfull.se, Dfull.theta, Dfull.r);    
+        else
+            scatter3(Dfull.st, Dfull.theta, Dfull.r);
+        end
     else
         scatter3(Dfull.theta(:,1), Dfull.theta(:,2), Rstar);
     end
@@ -109,22 +117,26 @@
     hold off
     limits = axis();
 
-    figure(5);
-    scatter3(Dfull.theta(params.InitialSamples+1:end,1), Dfull.theta(params.InitialSamples+1:end,2), Rstar(params.InitialSamples+1:end));
-    axis(limits);
+    if theta_dim == 2
+        figure(5);
+        scatter3(Dfull.theta(params.InitialSamples+1:end,1), Dfull.theta(params.InitialSamples+1:end,2), Rstar(params.InitialSamples+1:end));
+        axis(limits);
+    end
 
-    figure(6);
     if theta_dim == 1
     else
+        figure(6);
+
         plot3(theta_opt(:,1), theta_opt(:,2), context_vec(:,1));
         hold on
         scatter3(theta_opt(:,1), theta_opt(:,2), context_vec(:,1), '*');
 
         plot3(theta_vec(:,1), theta_vec(:,2), context_vec(:,1));
         scatter3(theta_vec(:,1), theta_vec(:,2), context_vec(:,1));
+        hold off
+        xlabel('theta_a'); ylabel('theta_v'); zlabel('context');
+
     end
-    hold off
-    xlabel('theta_a'); ylabel('theta_v'); zlabel('context');
     
     %figure(7);
     %problem.PlotEnv();

@@ -22,6 +22,10 @@ classdef ToyCannon1D0D1D < ToyCannonBaseES
         function [r, result] = sim_eval_func(obj, x)
             [r, result] = sim_eval_func@ToyCannonBaseES(obj, [x(:,1), x(:,2), ones(size(x,1),1)]);
         end
+        function [theta_vec, r_vec] = optimal_values(obj, datapoints, contextpoints)
+            theta_vec = zeros(contextpoints, size(obj.theta_bounds,1));
+            r_vec = zeros(contextpoints, 1);
+        end
     end
     
 end

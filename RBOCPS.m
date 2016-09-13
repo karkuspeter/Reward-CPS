@@ -9,17 +9,18 @@ function [ stats, linstat, params ] = RBOCPS( input_params )
 %   Detailed explanation goes here
 
 params = struct(...
-     'problem', ToyCannon1D2D, ...
+     'problem', ToyCannon0D1D1D, ...
      'kappa', 0.4, ...
      'sigmaM0', 0.05, ...%[0.01; 0.01],... %; 0.1], ... % lengthscale, how much inputs should be similar in that dim. 
      ...               % i.e. how far inputs should influence each other
      ...               % can be single value or vector for each theta dim
      'sigmaF0', 1,...  % how much inputs are correlated - 
-     'sigma0', 0.003, ... %how noisy my observations are, ...
-     'Algorithm', 3, ...   % 1 BOCPS, 2 RBOCPS, 3, PRBOCPS, 4 ACES, 5 RACES
-     'Niter', 200, ...
-     'InitialSamples', 50, ...
-     'EvalModulo', 50, ...
+     'sigma0', sqrt(0.003), ... %how noisy my observations are, ...
+     'Algorithm', 1, ...   % 1 BOCPS, 2 RBOCPS, 3, PRBOCPS, 4 ACES, 5 RACES
+     'Niter', 50, ...
+     'InitialSamples', 4, ...
+     'Neval', [100, 100], ... %evaluation points over contexts
+     'EvalModulo', 5, ...
      'EvalAllTheta', 0, ...
      'PopulateN', 6, ...
      'output_off', 0);
@@ -27,6 +28,8 @@ params = struct(...
 if (exist('input_params'))
     params = ProcessParams(params, input_params);
 end
+
+params.Niter = params.Niter + params.InitialSamples; % to make it consistent with entropy search
 
 problem = params.problem;
 
@@ -68,6 +71,7 @@ end
 
 % optimal values
 [theta_opt, r_opt] = problem.optimal_values(100, 100);
+
 
 
 %% main iter
@@ -120,7 +124,7 @@ for iter=1:params.Niter
     end
     
     % get sample from simulator
-    [r, outcome] = problem.sim_func([context_t, context_e], theta);
+    [r, outcome] = problem.sim_func([context_t, context_e, theta]);
     
     % add to data matrix
     %if isPopulate
@@ -156,7 +160,7 @@ for iter=1:params.Niter
     if (~params.output_off)
         fprintf('Eval iteration %d \n', iter);
     end
-    context_vec = linspace(sfull_bounds(:,1), sfull_bounds(:,2), 100)';
+    context_vec = linspace(sfull_bounds(:,1), sfull_bounds(:,2), params.Neval(1))';
     
     if theta_dim == 1
         theta_space = linspace(theta_bounds(:,1),theta_bounds(:,2), 100)';
@@ -188,7 +192,7 @@ for iter=1:params.Niter
         else
             pred_space = theta_space;
         end
-        r_vec(i,:) = problem.sim_eval_func(context_vec(i,:), theta_vec(i,:));
+        r_vec(i,:) = problem.sim_eval_func([context_vec(i,:), theta_vec(i,:)]);
         
         %if params.EvalAllTheta
         [newypred, newystd] = predict(gprMdl, pred_space);

@@ -34,7 +34,7 @@ function [ theta ] = BOCPSpolicy( gprMdl, context, params, theta_bounds, use_cma
     [xatmin2, minval2] = fminunc(f, xatmin1, optimoptions('fminunc','Algorithm','quasi-newton', 'Display', 'none'));
     
     if any(xatmin2<theta_bounds(:,1)) || any(xatmin2>theta_bounds(:,2))
-        disp('warning: out of bounds');
+        %disp('warning: out of bounds');
         [xatmin2, minval2] = fmincon(f, xatmin1, [], [], [], [], theta_bounds(:,1), theta_bounds(:,2), [], optimoptions('fmincon', 'Display', 'none'));
         
     end
