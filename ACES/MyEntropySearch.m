@@ -53,7 +53,7 @@ params = struct(...
     'sigma0', sqrt(0.003), ... % noise level on signals (standard deviation);
     'Normalize', 1, ... %normalize y values
     ... %TODO these are not normalized!
-    'Algorithm', 1, ...   % 1 ACES, 2, BOCPSEntropy
+    'Algorithm', 2, ...   % 1 ACES, 2, BOCPSEntropy
     'Sampling', 'Thompson2', ...  %can be Thompson, Nothing, Thompson2
     ...
     'LearnHypers', false, ...
@@ -192,7 +192,19 @@ while ~converged && (numiter < params.Niter)
     %TODO: replace with sampling distribution that tries to cover range
     %rather than picking independently
     
-    
+    %for Algorithm 2 enough to compute for nearest Nn
+    if params.Algorithm == 2
+        context = samplerange(params.xmin([sti sei]), params.xmax([sti sei]), 1);
+        if se_dim
+            dm = zeros(size(se_trials,1),1);
+            for i=1:size(se_trials,1)
+                dm(i) = mahaldist2(se_trials(i,:), context(sei), GP.invL(se_dim+1:end, se_dim+1:end));
+            end
+            [sortedX, sortedIndices] = sort(dm,'ascend');
+            rel_se_inds = sortedIndices(1:params.Nn);
+            se_trials = sort(se_trials(rel_se_inds,:));
+        end
+    end
     
     zb = samplerange(params.xmin(thi), params.xmax(thi), params.Nbpool);
     zb = sort(zb);
@@ -213,19 +225,19 @@ while ~converged && (numiter < params.Niter)
     %     end
     
     % generate zb, logP vectors for each trial se
-    zb_vec = zeros(params.Nb, se_dim+th_dim, params.Ntrial_se, params.Ntrial_st);
-    lmb_vec = zeros(params.Nb, 1, params.Ntrial_se, params.Ntrial_st);
-    logP_vec = zeros(params.Nb, 1, params.Ntrial_se, params.Ntrial_st);
+    zb_vec = zeros(params.Nb, se_dim+th_dim, size(se_trials,1), params.Ntrial_st);
+    lmb_vec = zeros(params.Nb, 1, size(se_trials,1), params.Ntrial_st);
+    logP_vec = zeros(params.Nb, 1, size(se_trials,1), params.Ntrial_st);
     GP_cell = cell(params.Ntrial_st, 1);
     
-    zb_vec2 = zeros(params.Nbpool, se_dim+th_dim, params.Ntrial_se, params.Ntrial_st);
-    lmb_vec2 = zeros(params.Nbpool, 1, params.Ntrial_se, params.Ntrial_st);
-    logP_vec2 = zeros(params.Nbpool, 1, params.Ntrial_se, params.Ntrial_st);
+    zb_vec2 = zeros(params.Nbpool, se_dim+th_dim, size(se_trials,1), params.Ntrial_st);
+    lmb_vec2 = zeros(params.Nbpool, 1, size(se_trials,1), params.Ntrial_st);
+    logP_vec2 = zeros(params.Nbpool, 1, size(se_trials,1), params.Ntrial_st);
 
     
     for i_st=1:params.Ntrial_st
         GP_cell{i_st} = problem.MapGP(GP, st_trials(i_st,:));
-        for i_se=1:params.Ntrial_se
+        for i_se=1:size(se_trials,1)
             %             zb_vec(:,:,i_se, i_st) = [repmat(se_trials(i_se,:),params.Nb,1) zb];
             %             lmb_vec(:,:,i_se, i_st) = lmb;
             %             logP_vec(:,:,i_se, i_st) = EstPmin(GP_cell{i_st}, zb_vec(:,:,i_se, i_st), params.S, randn(size(zb,1), params.S));  %joint_min(Mb_vec(:,:,i), Vb_vec(:,:,i), 1);
@@ -527,23 +539,37 @@ while ~converged && (numiter < params.Niter)
     
     
     % construct ACES function for this GP
+    if params.Algorithm == 1
+        % there is no random context, also has to search for SE space
+        context = [];
+        ssei = sei;
+        sinvsei = [];
+    else
+        % dont search in SE space
+        ssei = [];
+        sinvsei = sei;
+    end
+
     rand_start = rng();
     % rand_start = rng('shuffle');
     %aces_f = @(x)(ACES(GP, logP_vec, zb_vec, lmb_vec, y_vec, x, trial_contexts, in.st_dim, params, rand_start));
     %aces_f = @(x)(ACES2(GP, zb, lmb, x, in.st_dim, problem.MapGP, params, rand_start));
-    aces_f = @(x)(ACES3(GP_cell, logP_vec, zb_vec, lmb_vec, st_trials, se_trials, x, params, rand_start));
-    aces_f2 = @(x)(ACES3(GP_cell, logP_vec2, zb_vec2, lmb_vec2, st_trials, se_trials, x, params, rand_start));
-
+    aces_f = @(x)(ACES3(GP_cell, logP_vec, zb_vec, lmb_vec, st_trials, se_trials, [context(sinvsei); x], params, rand_start));
+    aces_f2 = @(x)(ACES3(GP_cell, logP_vec2, zb_vec2, lmb_vec2, st_trials, se_trials, [context(sinvsei); x], params, rand_start));
     
-    [minval1,xatmin1,hist] = Direct(struct('f', @(x)(aces_f(x'))), [params.xmin([sei thi])' params.xmax([sei thi])'], struct('showits', 1, 'maxevals', params.DirectEvals1));
+    [minval1,xatmin1,hist] = Direct(struct('f', @(x)(aces_f(x'))), [params.xmin([ssei thi])' params.xmax([ssei thi])'], struct('showits', 1, 'maxevals', params.DirectEvals1));
     if params.DirectEvals2
-        xrange = [params.xmax([sei thi])' - params.xmin([sei thi])']/10;
-        xrange = [max(xatmin1-xrange,params.xmin([sei thi])') min(xatmin1+xrange,params.xmax([sei thi])') ];
+        xrange = [params.xmax([ssei thi])' - params.xmin([ssei thi])']/10;
+        xrange = [max(xatmin1-xrange,params.xmin([ssei thi])') min(xatmin1+xrange,params.xmax([ssei thi])') ];
         [minval2,xatmin2,hist] = Direct(struct('f', @(x)(aces_f(x'))), xrange, struct('showits', 1, 'maxevals', params.DirectEvals2));
     else
         minval2 = minval1;
         xatmin2 = xatmin1;
     end
+    % add random context if algorithm 2
+    xatmin1 = [context(sinvsei); xatmin1];
+    xatmin2 = [context(sinvsei); xatmin2];
+    
     xatmin2
     
     GP_full_x = repmat(plot_x, size(GP.x,1), 1);
@@ -561,6 +587,9 @@ while ~converged && (numiter < params.Niter)
                 aces_values(i,:) = arrayfun(@(b)(aces_fplot([plot_x(1:end-2), b])), xy(i,:));
             end
             
+        elseif params.Algorithm == 2
+            [xx, xy] = ndgrid(linspace(params.xmin(end-1),params.xmax(end-1),10)', linspace(params.xmin(end),params.xmax(end),10)');
+            aces_values = repmat(arrayfun(@(a,b)(aces_f([plot_x(st_dim+se_dim+1:end-1) b])), xx(1,:), xy(1,:)), size(xx,1),1);
         else
             [xx, xy] = ndgrid(linspace(params.xmin(end-1),params.xmax(end-1),10)', linspace(params.xmin(end),params.xmax(end),10)');
             aces_values = arrayfun(@(a,b)(aces_f([plot_x(1:end-2) a b])), xx, xy);
