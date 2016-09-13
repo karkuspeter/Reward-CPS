@@ -1,14 +1,17 @@
 %hyper_params = struct('Algorithm', [1,2]);
 hyper_params = struct(...
-     'kappa', [0.1 0.5 1], ...
-     'sigmaM0', [0.01 0.05 0.1], ...%[0.01; 0.01],... %; 0.1], ... % lengthscale, how much inputs should be similar in that dim. 
-     'sigmaF0', [0.5 1 2]);
+    'Algorithm', [1 2] ...
+);
 common_params = struct('output_off', 1, ...
-    'Algorithm', 2, ...
-    'Niter', 60, ...
-    'InitialSamples', 3, ...
-    'EvalModulo', 5);
-repeat_setting = 20;
+    'problem', ToyCannon0D1D1D, ...
+    'kappa', [1.25], ...
+    'sigmaM0', 0.45^2, ...
+    'sigmaF0', [0.8], ...
+    'Niter', 15, ...
+    'InitialSamples', 5, ...
+    'Neval', [100 100], ...
+    'EvalModulo', 1);
+repeat_setting = 10;
 
 % create a list of all permutations     
 hp_list = [common_params]; % start with params for all executions
@@ -38,7 +41,7 @@ for i = 1:numel(hp_list)
     repeats = repeat_setting;
     keep_prev = 0;
     
-    spider_func = @RBOCPS;
+    spider_func = @MyEntropySearch%@RBOCPS;
     show_func = @ShowRepeatResults;
     reward_name = 'R_mean';
     
@@ -71,7 +74,7 @@ save(strcat('results/hyper-', datestr(now,'dd-mm-yyyy-HH-MM'), '.mat'));
 % show specific result
 figure
 
-indices = [1 2];
+indices = [1];
 labels = {};
 plots = {};
 for ind = indices
@@ -84,5 +87,16 @@ for ind = indices
     plots = [plots, {h}];
 end
 legend([plots{:}], labels);
+
+h_cumm_mean = [];
+h_cumm_std = [];
+for ind = 1:length(hp_list)
+    h_cumm_mean(ind) = h_stats(1,1,ind).Rcumm_mean;
+    h_cumm_std(ind) = h_stats(1,1,ind).Rcumm_std;
+end
+h_eval_matrix = [1:length(hp_list); h_cumm_mean; h_cumm_std];
+
+[maxval, maxind] = max(h_cumm_mean)
+best_params = h_params(1,1,maxind)
 
 no_params = 0;

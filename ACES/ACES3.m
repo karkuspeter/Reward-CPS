@@ -31,7 +31,7 @@ end
 eval_inds = [a(:) b(:)];
 
 val = zeros(size(eval_inds,1), 1);
-for i=1:size(eval_inds,1)    %parfor on lab PC got double speed with 4 cores, Nn = 4
+parfor i=1:size(eval_inds,1)    %parfor on lab PC got double speed with 4 cores, Nn = 4
     if use_seed
         rng(seed);  %if every time called with same seed ACES will be the same
     end
