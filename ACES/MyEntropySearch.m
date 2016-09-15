@@ -1,4 +1,5 @@
 function [ stats, linstat, params ] = MyEntropySearch(input_params)
+% TODO: try optimistic prior, i.e. set mean to minimum possible cost (minimize cost function / user heuristic)
 % TODO: representer sampling not great yet (Thompson?) and it is not
 % compensated in the Loss function (not added to lmb). Due to this entropy
 % change will be large where lots of points are around the new sample but
@@ -32,7 +33,7 @@ function [ stats, linstat, params ] = MyEntropySearch(input_params)
 fprintf 'starting entropy search.\n'
 
 params = struct(...
-    'problem', ToyCannon0D1D1D, ...
+    'problem', ToyCannon1D0D2D, ...
     'GP', struct, ... %user may override this with initial samples, etc
     ...
     'S', 1000, ... %how many samples to take from GP posterior to estimate pmin
@@ -42,31 +43,31 @@ params = struct(...
     'Nn', 8, ...  % only the neares Nn out of Ntrial_se will be evaluated for a context se
     'Nb', 20, ... %number of representers for p_min over theta space generated with Thompson sampling
     'Nbpool', 500, ... %randomply chosen theta value pool for Thompson sampling
-    'Neval', [20, 100], ... %evaluation points over contexts
+    'Neval', [20, 20, 20], ... %evaluation points over contexts
     'DirectEvals1', 40, ...  % number of maximum function evaluations for DIRECT search
     'DirectEvals2', 40, ...
     ... % GP parameters. only used if GP is not provided. covarianve values
     'sigmaM0', 0.45^2, ...%[0.01; 0.01],... %; 0.1], ... % lengthscale, how much inputs should be similar in that dim.
     ...               % i.e. how far inputs should influence each other
     ...               % can be single value or vector for each theta dim
-    'sigmaF0', 1^2,...  % how much inputs are correlated - (covariance, not std)
+    'sigmaF0', 0.8,...  % how much inputs are correlated - (covariance, not std)
     'sigma0', sqrt(0.003), ... % noise level on signals (standard deviation);
-    'Normalize', 1, ... %normalize y values
+    'Normalize', 0, ... %normalize y values
     ... %TODO these are not normalized!
     'Algorithm', 2, ...   % 1 ACES, 2, BOCPSEntropy
     'Sampling', 'Thompson2', ...  %can be Thompson, Nothing, Thompson2
     ...
     'LearnHypers', false, ...
     'HyperPrior',@SEGammaHyperPosterior,... %for learning hyperparameters
-    'Niter', 9, ...
-    'InitialSamples', 3, ...  %minimum 1
+    'Niter', 50, ...
+    'InitialSamples', 9, ...  %minimum 1
     'EvalModulo', 1, ...
     'EvalAllTheta', 0, ...
     'ReturnOptimal', 1, ... %computes optimal values and put in return struct
     'ConvergedFunc', @()(false), ... %this will be called at end of iteration
     'output_off', 0);
 
-PlotModulo = struct('ACES', 1, 'pmin', 1, 'policy', 1);
+PlotModulo = struct('ACES', 10, 'pmin', 10, 'policy', 10);
 
 if (exist('input_params'))
     params = ProcessParams(params, input_params);
@@ -146,6 +147,7 @@ GP.x            = samplerange(params.xmin([sei thi]), params.xmax([sei thi]), pa
 
 if (isfield(params,'GP'))
     GP = ProcessParams(GP, params.GP);
+    params.InitialSamples = size(GP.x, 1);
 end
 
 GP.invL = inv(diag(exp(GP.hyp.cov(1:end-1)))); %inverse of length scales
@@ -172,13 +174,16 @@ if strcmp(params.Sampling, 'Nothing')
 end
 
 stats = struct('last_R_mean', 0);
-linstat = struct('R_mean', [], 'st', [], 'se', [], 'theta', [], ...
-    'theta_s', [], 'R_s', [], 'R_opt', [], ...
-    'outcome', [], 'evaluated', []);
+linstat = struct('R_mean', zeros(params.InitialSamples,1), ...
+                 'st', zeros(size(GP.x,1),1), 'se', GP.x(:,sei-st_dim), 'theta', GP.x(:,thi-st_dim), ...
+                 'theta_s', zeros(params.InitialSamples, prod(params.Neval([sti sei]))*th_dim), ...
+                 'R_s', zeros(params.InitialSamples, prod(params.Neval([sti sei]))), ...
+                 'R_opt', [], ...
+                 'outcome', GP.obs(:,:), 'evaluated', zeros(params.InitialSamples,1));
 
 %% iterations
 converged = false;
-numiter   = 0;
+numiter   = params.InitialSamples;
 %MeanEsts  = zeros(0,D);
 %MAPEsts   = zeros(0,D);
 %BestGuesses= zeros(0,D);
@@ -198,7 +203,7 @@ while ~converged && (numiter < params.Niter)
         if se_dim
             dm = zeros(size(se_trials,1),1);
             for i=1:size(se_trials,1)
-                dm(i) = mahaldist2(se_trials(i,:), context(sei), GP.invL(se_dim+1:end, se_dim+1:end));
+                dm(i) = mahaldist2(se_trials(i,:), context(sei), GP.invL(sei, sei));
             end
             [sortedX, sortedIndices] = sort(dm,'ascend');
             rel_se_inds = sortedIndices(1:params.Nn);
@@ -554,8 +559,8 @@ while ~converged && (numiter < params.Niter)
     % rand_start = rng('shuffle');
     %aces_f = @(x)(ACES(GP, logP_vec, zb_vec, lmb_vec, y_vec, x, trial_contexts, in.st_dim, params, rand_start));
     %aces_f = @(x)(ACES2(GP, zb, lmb, x, in.st_dim, problem.MapGP, params, rand_start));
-    aces_f = @(x)(ACES3(GP_cell, logP_vec, zb_vec, lmb_vec, st_trials, se_trials, [context(sinvsei); x], params, rand_start));
-    aces_f2 = @(x)(ACES3(GP_cell, logP_vec2, zb_vec2, lmb_vec2, st_trials, se_trials, [context(sinvsei); x], params, rand_start));
+    aces_f = @(x)(ACES3(GP_cell, logP_vec, zb_vec, lmb_vec, st_trials, se_trials, [context(sinvsei) x], params, rand_start));
+    aces_f2 = @(x)(ACES3(GP_cell, logP_vec2, zb_vec2, lmb_vec2, st_trials, se_trials, [context(sinvsei) x], params, rand_start));
     
     [minval1,xatmin1,hist] = Direct(struct('f', @(x)(aces_f(x'))), [params.xmin([ssei thi])' params.xmax([ssei thi])'], struct('showits', 1, 'maxevals', params.DirectEvals1));
     if params.DirectEvals2
@@ -589,7 +594,7 @@ while ~converged && (numiter < params.Niter)
             
         elseif params.Algorithm == 2
             [xx, xy] = ndgrid(linspace(params.xmin(end-1),params.xmax(end-1),10)', linspace(params.xmin(end),params.xmax(end),10)');
-            aces_values = repmat(arrayfun(@(a,b)(aces_f([plot_x(st_dim+se_dim+1:end-1) b])), xx(1,:), xy(1,:)), size(xx,1),1);
+            aces_values = arrayfun(@(a,b)(aces_f([plot_x(st_dim+se_dim+1:end-2) a(th_dim>1) b])), xx, xy);
         else
             [xx, xy] = ndgrid(linspace(params.xmin(end-1),params.xmax(end-1),10)', linspace(params.xmin(end),params.xmax(end),10)');
             aces_values = arrayfun(@(a,b)(aces_f([plot_x(1:end-2) a b])), xx, xy);
@@ -626,7 +631,7 @@ while ~converged && (numiter < params.Niter)
     
     %% plot pmin
     % only 1D theta supported for now
-    if PlotModulo.pmin && ~mod(numiter, PlotModulo.pmin) && (th_dim == 1)
+    if PlotModulo.pmin && ~mod(numiter, PlotModulo.pmin)
         %plot over a uniform grid
         [xx xy] = ndgrid(linspace(params.xmin(end-1),params.xmax(end-1),100)', linspace(params.xmin(end),params.xmax(end),100)');
         pmin_values = zeros(size(xx));
@@ -636,7 +641,7 @@ while ~converged && (numiter < params.Niter)
                 pmin_values(i,:) = EstPmin(GPrel, [xy(i,:)'], 1000, randn(size(xy,2),1000));
             else
                 GPrel = problem.MapGP(GP, plot_x(sti));
-                pmin_values(i,:) = EstPmin(GPrel, [xx(i,:)' xy(i,:)'], 1000, randn(size(xy,2),1000));
+                pmin_values(i,:) = EstPmin(GPrel, [repmat(plot_x(st_dim+1:end-2),size(xx,2),1) xx(i,:)' xy(i,:)'], 1000, randn(size(xy,2),1000));
             end
             %%plot3(repmat(xx(i),1,in.Nb), pmin_values(i,:), zz');
         end

@@ -17,7 +17,7 @@ x_th = x(se_dim + 1 : end);
 if se_dim
     dm = zeros(size(se_trials,1),1);
     for i=1:size(se_trials,1)
-        dm(i) = mahaldist2(se_trials(i,:), x_se, GP_cell{1}.invL(se_dim+1:end, se_dim+1:end));
+        dm(i) = mahaldist2(se_trials(i,:), x_se, GP_cell{1}.invL(st_dim+1:st_dim+se_dim, st_dim+1:st_dim+se_dim));
         %Note: GP_cel{1} assumes that invL will be the same for all st GP-s.
     end
     [sortedX, sortedIndices] = sort(dm,'ascend');

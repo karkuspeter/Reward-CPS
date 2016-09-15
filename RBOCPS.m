@@ -9,14 +9,14 @@ function [ stats, linstat, params ] = RBOCPS( input_params )
 %   Detailed explanation goes here
 
 params = struct(...
-     'problem', ToyCannon0D1D1D, ...
-     'kappa', 0.4, ...
-     'sigmaM0', 0.05, ...%[0.01; 0.01],... %; 0.1], ... % lengthscale, how much inputs should be similar in that dim. 
+     'problem', ToyCannon1D0D2D, ...
+     'kappa', 1.25, ...
+     'sigmaM0', 0.45^2, ...%[0.01; 0.01],... %; 0.1], ... % lengthscale, how much inputs should be similar in that dim. 
      ...               % i.e. how far inputs should influence each other
      ...               % can be single value or vector for each theta dim
-     'sigmaF0', 1,...  % how much inputs are correlated - 
+     'sigmaF0', 0.8,...  % how much inputs are correlated - 
      'sigma0', sqrt(0.003), ... %how noisy my observations are, ...
-     'Algorithm', 1, ...   % 1 BOCPS, 2 RBOCPS, 3, PRBOCPS, 4 ACES, 5 RACES
+     'Algorithm', 2, ...   % 1 BOCPS, 2 RBOCPS, 3, PRBOCPS, 4 ACES, 5 RACES
      'Niter', 50, ...
      'InitialSamples', 4, ...
      'Neval', [100, 100], ... %evaluation points over contexts
@@ -29,7 +29,7 @@ if (exist('input_params'))
     params = ProcessParams(params, input_params);
 end
 
-params.Niter = params.Niter + params.InitialSamples; % to make it consistent with entropy search
+%params.Niter = params.Niter + params.InitialSamples; % to make it consistent with entropy search
 
 problem = params.problem;
 
@@ -116,7 +116,7 @@ for iter=1:params.Niter
             'KernelParameters',[params.sigmaM0; params.sigmaF0],...
             'Sigma',params.sigma0, ...
             'SigmaLowerBound', 1e-1*std(Rstar), ...            
-            'Standardize',1);
+            'Standardize',0);
         theta = BOCPSpolicy(gprMdl, context_full(1,context_mask), params, theta_bounds, isACES);
         
     else

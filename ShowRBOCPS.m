@@ -4,9 +4,9 @@
 
         [x1, x2] = ndgrid(linspace(theta_bounds(1,1),theta_bounds(1,2), 100), ...
             linspace(theta_bounds(2,1),theta_bounds(2,2), 100));
-        %y = arrayfun(@(t1, t2)(problem.sim_eval_func([context, t1, t2])), x1, x2);
+        y = arrayfun(@(t1, t2)(problem.sim_eval_func([context, t1, t2])), x1, x2);
         
-        y = problem.get_cached_grid(context_id, 100, 100);
+        %y = problem.get_cached_grid(context_id, 100, 100);
         
         %[r_opt, ind] = max(y(:)); %will return 1d indexing
         %theta_opt = [t1(ind), t2(ind)];
