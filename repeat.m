@@ -1,7 +1,7 @@
 if ~exist('no_params') || no_params == 0
-    repeats = 2;
+    repeats = 6;
     keep_prev = 0;
-    spider_func = @MyEntropySearch; %@RBOCPS;
+    spider_func = @RBOCPS; %@MyEntropySearch; %@RBOCPS;
     show_func = @ShowRepeatResults;
     reward_name = 'R_mean';
     run_struct = struct('output_off',1,'method',2);
@@ -9,28 +9,33 @@ if ~exist('no_params') || no_params == 0
 end
 
 if (~keep_prev) || ~exist(stat_vec)
-    stat_vec = [];
-    linstat_vec = [];
+    stat_vec = {};
+    linstat_vec = {};
     cumm_rew_vec = [];
-    seed_vec = [];
+    seed_vec = {};
 end
 
-for i=1:repeats
-    disp(sprintf('%d / %d', i, repeats));
-    seed_vec = [seed_vec; rng()];
+reps = size(stat_vec,1)+1:size(stat_vec,1)+repeats;
+parfor i=reps
+    fprintf('%d / %d', i, repeats);
+    % random seed is supposed to be different in each worker, just save it for reproducability
+    seed_vec{i} = rng();
     
     [stat, linstat, params] = spider_func(run_struct);
     cumm_rew = mean(linstat.(reward_name));
 
-    stat_vec = [stat_vec; stat];
-    linstat_vec = [linstat_vec; linstat];
+    stat_vec{i} = stat;
+    linstat_vec{i} = linstat;
     % params should be same, so we dont store it in vector
-    cumm_rew_vec(:,:,end+1) = cumm_rew;
+    cumm_rew_vec(:,:,i) = cumm_rew;
     
-    if (linstat.R_mean(end) < 2.5)
-        disp('Low performance');
-    end
+    %if (linstat.R_mean(end) < 2.5)
+    %    disp('Low performance');
+    %end
 end
+stat_vec = [stat_vec{:}]';
+linstat_vec = [linstat_vec{:}]';
+seed_vec = [seed_vec{:}]';
 
 rep_stats.Rcumm_mean = mean(cumm_rew_vec,3);
 rep_stats.Rcumm_std = std(cumm_rew_vec,0,3);
