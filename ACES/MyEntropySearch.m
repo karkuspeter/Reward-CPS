@@ -192,8 +192,9 @@ while ~converged && (numiter < params.Niter)
     fprintf('\n');
     disp(['iteration number ' num2str(numiter)])
     %     try
-    st_trials = sort(samplerange(params.xmin(sti), params.xmax(sti), params.Ntrial_st));
-    se_trials = sort(samplerange(params.xmin(sei), params.xmax(sei), params.Ntrial_se));
+    st_trials = samplerange(params.xmin(sti), params.xmax(sti), params.Ntrial_st);
+    se_trials = samplerange(params.xmin(sei), params.xmax(sei), params.Ntrial_se);
+    % SORT does not make sense for higher dim!
     %TODO: replace with sampling distribution that tries to cover range
     %rather than picking independently
     
@@ -207,12 +208,13 @@ while ~converged && (numiter < params.Niter)
             end
             [sortedX, sortedIndices] = sort(dm,'ascend');
             rel_se_inds = sortedIndices(1:params.Nn);
-            se_trials = sort(se_trials(rel_se_inds,:));
+            %se_trials = sort(se_trials(rel_se_inds,:)); FAILS FOR HIGHER DIM 
+         
         end
     end
     
     zb = samplerange(params.xmin(thi), params.xmax(thi), params.Nbpool);
-    zb = sort(zb);
+    %zb = sort(zb);
     
     lmb = log(norm(params.xmax([sei thi]) - params.xmin([sei thi])));
     % log(params.Nb); %= -log(1/Nb) %log of uniform measure, |I|^-1
