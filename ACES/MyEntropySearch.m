@@ -1,5 +1,10 @@
 function [ stats, linstat, params ] = MyEntropySearch(input_params)
-% TODO: try optimistic prior, i.e. set mean to minimum possible cost (minimize cost function / user heuristic)
+% TODO: try preserving st context correlation in policy prediction:
+% sample a couple of representer st from covariance function around 
+% query context and predict from that full GP
+% This only makes sense if we hope to get something out of this assumption
+% it does bad if there are big discountunities between nearby context
+
 % TODO: representer sampling not great yet (Thompson?) and it is not
 % compensated in the Loss function (not added to lmb). Due to this entropy
 % change will be large where lots of points are around the new sample but
@@ -47,17 +52,18 @@ params = struct(...
     'DirectEvals1', 40, ...  % number of maximum function evaluations for DIRECT search
     'DirectEvals2', 40, ...
     ... % GP parameters. only used if GP is not provided. covarianve values
-    'sigmaM0', 0.45^2, ...%[0.01; 0.01],... %; 0.1], ... % lengthscale, how much inputs should be similar in that dim.
+    'sigmaM0', 0.4, ... %0.45^2, ...%[0.01; 0.01],... %; 0.1], ... % lengthscale, how much inputs should be similar in that dim.
     ...               % i.e. how far inputs should influence each other
     ...               % can be single value or vector for each theta dim
-    'sigmaF0', 0.8,...  % how much inputs are correlated - (covariance, not std)
+    'sigmaF0', 1.5, ... %0.8,...  % how much inputs are correlated - (covariance, not std)
     'sigma0', sqrt(0.003), ... % noise level on signals (standard deviation);
-    'Normalize', 0, ... %normalize y values
+    'Normalize', 0, ... %normalize y values: offse
+    'OptimisticMean', -1, ... %lowest possible value (will shift y values)
     ... %TODO these are not normalized!
     'Algorithm', 2, ...   % 1 ACES, 2, BOCPSEntropy
-    'Sampling', 'Thompson2', ...  %can be Thompson, Nothing, Thompson2
+    'Sampling', 'Thompson3', ...  %can be Thompson, Nothing, Thompson2 Thompson3
     ...
-    'LearnHypers', false, ...
+    'LearnHypers', true, ...
     'HyperPrior',@SEGammaHyperPosterior,... %for learning hyperparameters
     'Niter', 50, ...
     'InitialSamples', 9, ...  %minimum 1
@@ -132,7 +138,7 @@ hyp.cov         = log([params.sigmaM0; params.sigmaF0]); % hyperparameters for t
 hyp.lik         = log(params.sigma0); % noise level on signals (log(standard deviation));
 GP.hyp          = hyp;
 GP.res          = 1;
-GP.offset       = 0;
+GP.offset       = -params.OptimisticMean;
 GP.deriv        = 0; %from entropy search ? derivative observations?
 GP.poly         = -1; %from entropy search ? polynomial mean?
 GP.log          = 0; % logarithmic transformed observations?
@@ -154,7 +160,20 @@ GP.invL = inv(diag(exp(GP.hyp.cov(1:end-1)))); %inverse of length scales
 GP.K   = k_matrix(GP,GP.x) + diag(GP_noise_var(GP,GP.y));
 GP.cK  = chol(GP.K);
 
-hyp_initial = GP.hyp;
+GP.hyp_initial = GP.hyp;
+
+prior.cov = {};
+for i = 1:size(GP.hyp.cov,1)
+   prior.cov{i} = {@priorTransform, @exp, @exp, @log, {@priorGauss, exp(GP.hyp_initial.cov(i)), exp(GP.hyp_initial.cov(i))/4}};
+end
+prior.lik = {{@priorClamped}};
+GP.inf = {@infPrior, @infExact, prior};
+
+% optimize hyper parameters if needed
+GP = problem.MapGP(GP, [], params.LearnHypers);
+
+%hyp = minimize(GP.hyp,@(x)gp(x, GP.inf, [], GP.covfunc, GP.likfunc, GP.x, GP.y),minimizeopts);
+%{@infPrior,@infExact,params.HyperPrior}
 
 %% construct evaluation grid
 evalgrid = evalgridfun(params.xmin, params.xmax, params.Neval);
@@ -179,7 +198,8 @@ linstat = struct('R_mean', zeros(params.InitialSamples,1), ...
                  'theta_s', zeros(params.InitialSamples, prod(params.Neval([sti sei]))*th_dim), ...
                  'R_s', zeros(params.InitialSamples, prod(params.Neval([sti sei]))), ...
                  'R_opt', [], ...
-                 'outcome', GP.obs(:,:), 'evaluated', zeros(params.InitialSamples,1));
+                 'outcome', GP.obs(:,:), 'evaluated', zeros(params.InitialSamples,1), ...
+                 'GP', repmat(GP, params.InitialSamples, 1));
 
 %% iterations
 converged = false;
@@ -243,7 +263,7 @@ while ~converged && (numiter < params.Niter)
 
     
     for i_st=1:params.Ntrial_st
-        GP_cell{i_st} = problem.MapGP(GP, st_trials(i_st,:));
+        GP_cell{i_st} = problem.MapGP(GP, st_trials(i_st,:), params.LearnHypers);
         for i_se=1:size(se_trials,1)
             %             zb_vec(:,:,i_se, i_st) = [repmat(se_trials(i_se,:),params.Nb,1) zb];
             %             lmb_vec(:,:,i_se, i_st) = lmb;
@@ -305,6 +325,7 @@ while ~converged && (numiter < params.Niter)
                 while i<=params.Nb
                     y = randsample(params.Nbpool,1,true,P);
                     if w(y) > 0
+                        %TODO problem: can stuck in infinite loop
                         w(y) = w(y)+1;
                     else
                         w(y) = 1;
@@ -312,12 +333,11 @@ while ~converged && (numiter < params.Niter)
                         i = i+1;
                     end
                 end
+                % sort for easier debugging, not neccessary
+                inds = sort(inds);                
+                
                 w = w(inds,:);
 
-                % sort for easier debugging, not neccessary
-                [inds sorting] = sort(inds);
-                w = w(sorting);
-                
                 zbnew = extpool(inds, :);
                 lw = logP(inds,:) - log(w);  %log(u/w)
                 
@@ -332,8 +352,25 @@ while ~converged && (numiter < params.Niter)
                 zb_vec2(:,:,i_se, i_st) = extpool;
                 logP_vec2(:,:,i_se, i_st) = logP;
                 lmb_vec2(:,:,i_se, i_st) = lmb + log(params.Nbpool) - lmb; %because u=1, Zu = xmax-xmin. b(x) = 1/xmax-xmin
+         
+            elseif strcmp(params.Sampling, 'Thompson3')
+                pool = zb;
+                extpool = [repmat(se_trials(i_se,:),size(pool,1),1) pool];
+                logP = EstPmin(GP_cell{i_st}, extpool, params.Nbpool*25, randn(params.Nbpool, params.Nbpool*25));
+                P = exp(logP);
+                % sample from logP without replacement
+                inds = datasample((1:params.Nbpool)',params.Nb,1,'Replace',false, 'Weights', P);
                 
+                % sort for easier debugging, not neccessary
+                inds = sort(inds);
                 
+                zbnew = extpool(inds, :);
+                lw = logP(inds,:);  %log(u)
+                
+                lmb_vec(:,:,i_se, i_st) = lmb + lw; % + log(params.Nb);
+                zb_vec(:,:,i_se, i_st) = zbnew;
+                logP_vec(:,:,i_se, i_st) = EstPmin(GP_cell{i_st}, zbnew, params.S, randn(size(zbnew,1), params.S));  %joint_min(Mb_vec(:,:,i), Vb_vec(:,:,i), 1);
+
                 if(false)
                     [exp(logP(inds,:)) w]
                     figure
@@ -634,23 +671,41 @@ while ~converged && (numiter < params.Niter)
     %% plot pmin
     % only 1D theta supported for now
     if PlotModulo.pmin && ~mod(numiter, PlotModulo.pmin)
-        %plot over a uniform grid
         [xx xy] = ndgrid(linspace(params.xmin(end-1),params.xmax(end-1),100)', linspace(params.xmin(end),params.xmax(end),100)');
-        pmin_values = zeros(size(xx));
-        for i=1:size(xx,1)
-            if se_dim + th_dim < 2
-                GPrel = problem.MapGP(GP, [plot_x(1:st_dim-1) xx(i,1)]);
+
+        if se_dim + th_dim < 2
+            %plot over a uniform grid
+            pmin_values = zeros(size(xx));
+
+            for i=1:size(xx,1)
+            
+                GPrel = problem.MapGP(GP, [plot_x(1:st_dim-1) xx(i,1)], params.LearnHypers);
                 pmin_values(i,:) = EstPmin(GPrel, [xy(i,:)'], 1000, randn(size(xy,2),1000));
-            else
-                GPrel = problem.MapGP(GP, plot_x(sti));
-                pmin_values(i,:) = EstPmin(GPrel, [repmat(plot_x(st_dim+1:end-2),size(xx,2),1) xx(i,:)' xy(i,:)'], 1000, randn(size(xy,2),1000));
             end
             %%plot3(repmat(xx(i),1,in.Nb), pmin_values(i,:), zz');
+        elseif th_dim == 2
+            
+            
+            %plot zb pool and the selected representers for the closest GP
+            ind = 10;
+            figure
+            hold on
+            stem3(zb(:,1), zb(:,2), exp(logP), 'bo');
+            stem3(zb_vec(:,1,:,ind), zb_vec(:,2,:,ind), exp(logP_vec(:,:,:,ind)), 'r*');
+            
+            dist = zeros(size(xx(:),1),size(zb,1));
+            for i=1:size(dist,1)
+                dist(i,:) = (zb(:,1)'-xx(i)).^2 + (zb(:,2)'-xy(i)).^2;
+            end
+            [~, ind] = min(dist, [], 2);
+            pmin_values = logP(ind);
+            pmin_values = reshape(pmin_values, size(xx));
         end
-        figure
-        hold on
-        mesh(xx, xy, exp(pmin_values));
-        caxis([0, mean(mean(exp(pmin_values)))]);
+
+            figure
+            hold on
+            mesh(xx, xy, exp(pmin_values));
+            caxis([0, mean(mean(exp(pmin_values)))]);
         
 %         %plot over the representers used
 %         f1 = figure;
@@ -662,7 +717,7 @@ while ~converged && (numiter < params.Niter)
 %             [xx xy] = ndgrid(st_trials(ind,end), zeros(params.Nb,1));
 %             pmin_values = zeros(size(xx));
 %             for i=1:size(xx,1)
-%                 GPrel = problem.MapGP(GP, [plot_x(1:st_dim-1) xx(i,1)]);
+%                 GPrel = problem.MapGP(GP, [plot_x(1:st_dim-1) xx(i,1)], params.LearnHypers);
 %                 xy(i,:) = sort(zb_vec(:,end,1,ind(i)));
 %                 pmin_values(i,:) = EstPmin(GPrel, [xy(i,:)'], 1000, randn(size(xy,2),1000));
 %                 figure(f1);
@@ -679,7 +734,7 @@ while ~converged && (numiter < params.Niter)
 %             [xx xy] = ndgrid(se_trials(ind,end), zeros(params.Nb,1));
 %             pmin_values = zeros(size(xx));
 %             for i=1:size(xx,1)
-%                 GPrel = problem.MapGP(GP, plot_x(sti));
+%                 GPrel = problem.MapGP(GP, plot_x(sti), params.LearnHypers);
 %                 xy(i,:) = zb_vec(:,end,ind(i),end);
 %                 pmin_values(i,:) = EstPmin(GPrel, [xx(i,:)' xy(i,:)'], 1000, randn(size(xy,2),1000));
 %                 figure(f1);
@@ -735,18 +790,21 @@ while ~converged && (numiter < params.Niter)
     %         %end
     
     %% optimize hyperparameters
-    if params.LearnHypers
-        minimizeopts.length    = 10;
-        minimizeopts.verbosity = 1;
-        GP.hyp = minimize(hyp_initial,@(x)params.HyperPrior(x,GP.x,GP.y),minimizeopts);
-        GP.K   = k_matrix(GP,GP.x) + diag(GP_noise_var(GP,GP.y));
-        GP.cK  = chol(GP.K);
-        fprintf 'hyperparameters optimized.'
-        display(['length scales: ', num2str(exp(GP.hyp.cov(1:end-1)'))]);
-        display([' signal stdev: ', num2str(exp(GP.hyp.cov(end)))]);
-        display([' noise stddev: ', num2str(exp(GP.hyp.lik))]);
-        
-    end
+    % THIS is not necessary here. MapGP will always optimize hyp if needed
+    GP = problem.MapGP(GP, [], params.LearnHypers);
+%     if params.LearnHypers
+%         minimizeopts.length    = 10;
+%         minimizeopts.verbosity = 1;
+%         GP.hyp = minimize(GP.hyp_initial,@(x)params.HyperPrior(x,GP.x,GP.y),minimizeopts);
+%         GP.K   = k_matrix(GP,GP.x) + diag(GP_noise_var(GP,GP.y));
+%         GP.cK  = chol(GP.K);
+         fprintf 'hyperparameters optimized.'
+         display(['length scales: ', num2str(exp(GP.hyp.cov(1:end-1)'))]);
+         display([' signal stdev: ', num2str(exp(GP.hyp.cov(end)))]);
+         display([' noise stddev: ', num2str(exp(GP.hyp.lik))]);
+         
+%         
+%     end
     
     
     %% evaluate over contexts
@@ -764,7 +822,7 @@ while ~converged && (numiter < params.Niter)
         k=1;
         for i=1:size(eval_st_vect,1)
             %if st_dim
-            GPrel = problem.MapGP(GP, eval_st_vect(i,:));
+            GPrel = problem.MapGP(GP, eval_st_vect(i,:), params.LearnHypers);
             %else
             %    GPrel = GP;
             %end
@@ -787,6 +845,7 @@ while ~converged && (numiter < params.Niter)
     linstat.theta_s(numiter, :) = theta_vec(:)';
     linstat.R_s(numiter, :) = val_vec(:)';
     linstat.R_mean(numiter, :) = mean(val_vec);
+    linstat.GP(numiter,:) = GP;
     
     %% plot current theta policy
     % plot on real values
@@ -817,18 +876,18 @@ while ~converged && (numiter < params.Niter)
             full_m = zeros(100,100);
             full_s2 = zeros(100,100);
             for i=1:size(plotgrid{1},1)
-                GPrel = problem.MapGP(GP, [plot_x(1:st_dim-1) plotgrid{1}(i,1)]);
+                GPrel = problem.MapGP(GP, [plot_x(1:st_dim-1) plotgrid{1}(i,1)], params.LearnHypers);
                 [full_m(i,:), full_s2(i,:)] = gp(GPrel.hyp, [], [], GPrel.covfunc, GPrel.likfunc, GPrel.x, GPrel.y,...
                     [plotgrid{2}(i,:)']);
             end
             curr_m = zeros(size(s_vec,1),1);
             curr_s2 = zeros(size(s_vec,1),1);
             for i=1:size(s_vec,1)
-                GPrel = problem.MapGP(GP, s_vec(i,sti));
+                GPrel = problem.MapGP(GP, s_vec(i,sti), params.LearnHypers);
                 [curr_m(i,:) curr_s2(i,:)] = gp(GPrel.hyp, [], [], GPrel.covfunc, GPrel.likfunc, GPrel.x, GPrel.y, [s_vec(i,sei) theta_vec(i,:)]);
             end
         else
-            GPrel = problem.MapGP(GP, plot_x(sti));
+            GPrel = problem.MapGP(GP, plot_x(sti), params.LearnHypers);
             
             [full_m full_s2] = gp(GPrel.hyp, [], [], GPrel.covfunc, GPrel.likfunc, GPrel.x, GPrel.y, ...
                 [repmat(plot_x(st_dim+1:end-2),numel(plotgrid{1}),1) plotgrid{1}(:) plotgrid{2}(:)]);
@@ -853,7 +912,7 @@ while ~converged && (numiter < params.Niter)
     %print a specific GP mapping for ST
     if (false)
         i=90;
-        GPrel = problem.MapGP(GP, eval_st_vect(i,:));
+        GPrel = problem.MapGP(GP, eval_st_vect(i,:), params.LearnHypers);
         figure
         hold on
         scatter(GPrel.x, GPrel.y);

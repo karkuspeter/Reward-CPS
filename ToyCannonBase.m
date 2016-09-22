@@ -79,12 +79,32 @@ classdef ToyCannonBase < ProblemInterface
         end
         
                 
-        function GPnew = MapGP(obj, GP, st)
+        function GPnew = MapGP(obj, GP, st, LearnHypers)
+            if nargin < 4
+                LearnHypers = false;
+            end
+            
             GPnew = GP;
             if size(st)
                 for i=1:size(GP.x,1)
                     GPnew.y(i,:) = obj.r_func([st GP.x(i,1:size(obj.se_bounds,1))], GP.x(i,1+size(obj.se_bounds,1):end), GP.obs(i,:));
                 end
+            end
+            
+            if LearnHypers
+                minimizeopts.length    = 50;
+                minimizeopts.verbosity = 0;
+                %GPnew.hyp = minimize(GP.hyp_initial,@(x)GP.HyperPrior(x,GPnew.x,GPnew.y),minimizeopts);
+                
+                GPnew.hyp = minimize(GP.hyp_initial,@(x)gp(x, GP.inf, [], GP.covfunc, GP.likfunc, GPnew.x, GPnew.y),minimizeopts);
+
+                %fprintf 'hyperparameters optimized.'
+                %display(['length scales: ', num2str(exp(GPnew.hyp.cov(1:end-1)'))]);
+                %display([' signal stdev: ', num2str(exp(GPnew.hyp.cov(end)))]);
+                %display([' noise stddev: ', num2str(exp(GPnew.hyp.lik))]);        
+            end
+
+            if ~isempty(st) || LearnHypers
                 GPnew.K              = k_matrix(GPnew,GPnew.x) + diag(GP_noise_var(GPnew,GPnew.y));
                 GPnew.cK             = chol(GPnew.K);
             end
