@@ -228,6 +228,7 @@ while ~converged && (numiter < params.Niter)
             end
             [sortedX, sortedIndices] = sort(dm,'ascend');
             rel_se_inds = sortedIndices(1:params.Nn);
+            se_trials = se_trials(rel_se_inds,:);
             %se_trials = sort(se_trials(rel_se_inds,:)); FAILS FOR HIGHER DIM 
          
         end
@@ -640,7 +641,7 @@ while ~converged && (numiter < params.Niter)
             aces_values = arrayfun(@(a,b)(aces_f([plot_x(st_dim+se_dim+1:end-2) a(th_dim>1) b])), xx, xy);
         else
             [xx, xy] = ndgrid(linspace(params.xmin(end-1),params.xmax(end-1),10)', linspace(params.xmin(end),params.xmax(end),10)');
-            aces_values = arrayfun(@(a,b)(aces_f([plot_x(1:end-2) a b])), xx, xy);
+            aces_values = arrayfun(@(a,b)(aces_f([plot_x(st_dim+1:end-2) a b])), xx, xy);
         end
         figure
         mesh(xx, xy, aces_values);
@@ -691,7 +692,7 @@ while ~converged && (numiter < params.Niter)
             
             
             %plot zb pool and the selected representers for the closest GP
-            ind = 10;
+            ind = min(10, params.Ntrial_st);
             figure
             hold on
             stem3(zb(:,1), zb(:,2), exp(logP), 'bo');
