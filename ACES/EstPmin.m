@@ -14,11 +14,8 @@ cKI = inv(GP.cK);
 kPost = kTT - kTI*(cKI*cKI')*kTI';
 % if not positive semi-definite then find the nearest one
 %TODO how does this compromise the matrix... does this make sense?
-[cov_multiplier, p] = chol(kPost);
-if p
-    kPost = nearestSPD(kPost);
-    cov_multiplier = chol(kPost);
-end
+cov_multiplier = robustchol(kPost);
+
 cov_multiplier = cov_multiplier';
 
 P = zeros(size(zb,1),1);

@@ -360,6 +360,10 @@ while ~converged && (numiter < params.Niter)
                 P = exp(logP);
                 % sample from logP without replacement
                 inds = datasample((1:params.Nbpool)',params.Nb,1,'Replace',false, 'Weights', P);
+                % the probability that a zb was choosen is actually
+                % Multivariate Wallenius' noncentral hypergeometric distribution
+                % where: n=20; N=500; all mi = 1; x=1; wi = Pi;
+                
                 
                 % sort for easier debugging, not neccessary
                 inds = sort(inds);

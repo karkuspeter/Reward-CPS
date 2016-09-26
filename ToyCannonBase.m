@@ -97,7 +97,11 @@ classdef ToyCannonBase < ProblemInterface
                 %GPnew.hyp = minimize(GP.hyp_initial,@(x)GP.HyperPrior(x,GPnew.x,GPnew.y),minimizeopts);
                 
                 GPnew.hyp = minimize(GP.hyp_initial,@(x)gp(x, GP.inf, [], GP.covfunc, GP.likfunc, GPnew.x, GPnew.y),minimizeopts);
-
+                if isnan(GPnew.hyp.lik)
+                    GPnew.hyp = GP.hyp_initial;
+                    disp('Optimizing hyperparameters failed (not pos def matrix?)');
+                end
+                
                 %fprintf 'hyperparameters optimized.'
                 %display(['length scales: ', num2str(exp(GPnew.hyp.cov(1:end-1)'))]);
                 %display([' signal stdev: ', num2str(exp(GPnew.hyp.cov(end)))]);
@@ -106,7 +110,7 @@ classdef ToyCannonBase < ProblemInterface
 
             if ~isempty(st) || LearnHypers
                 GPnew.K              = k_matrix(GPnew,GPnew.x) + diag(GP_noise_var(GPnew,GPnew.y));
-                GPnew.cK             = chol(GPnew.K);
+                GPnew.cK             = robustchol(GPnew.K);
             end
         end
     end
