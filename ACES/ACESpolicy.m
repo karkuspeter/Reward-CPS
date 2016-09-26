@@ -1,8 +1,7 @@
-function [ theta, val_at_theta ] = ACESpolicy( GP, context, theta_bounds)
+function [ theta, val_at_theta ] = ACESpolicy(f, theta_bounds)
 %UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
 
-     f = @(theta)(gp(GP.hyp, [], [], GP.covfunc, GP.likfunc, GP.x, GP.y, [context theta']));
      [minval1,xatmin1,hist] = Direct(struct('f', f), theta_bounds, struct('showits', 0));
     
     % refine by BFGS

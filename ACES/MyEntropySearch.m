@@ -38,7 +38,7 @@ function [ stats, linstat, params ] = MyEntropySearch(input_params)
 fprintf 'starting entropy search.\n'
 
 params = struct(...
-    'problem', ToyCannon1D0D2D, ...
+    'problem', ToyCannon0D1D2D, ...
     'GP', struct, ... %user may override this with initial samples, etc
     ...
     'S', 1000, ... %how many samples to take from GP posterior to estimate pmin
@@ -60,12 +60,13 @@ params = struct(...
     'Normalize', 0, ... %normalize y values: offse
     'OptimisticMean', -1, ... %lowest possible value (will shift y values)
     ... %TODO these are not normalized!
-    'Algorithm', 2, ...   % 1 ACES, 2, BOCPSEntropy
+    'Algorithm', 4, ...   % 1 ACES, 2, BOCPSEntropy, Active-BOCPS, 4 BOCPS (set Ntrial_st=1)
     'Sampling', 'Thompson3', ...  %can be Thompson, Nothing, Thompson2 Thompson3
+    'kappa', 1.25, ... % kappa for BOCPS acquisition function
     ...
-    'LearnHypers', true, ...
+    'LearnHypers', false, ...
     'HyperPrior',@SEGammaHyperPosterior,... %for learning hyperparameters
-    'Niter', 50, ...
+    'Niter', 11, ...
     'InitialSamples', 9, ...  %minimum 1
     'EvalModulo', 1, ...
     'EvalAllTheta', 0, ...
@@ -121,7 +122,7 @@ thi = s_dim+1:D;
 if size(params.sigmaM0,1) == 1
     params.sigmaM0 = repmat(params.sigmaM0, se_dim+th_dim, 1);
 end
-if ~st_dim
+if ~st_dim || params.Algorithm == 4
     params.Ntrial_st = 1;
 end
 if ~se_dim
@@ -218,9 +219,14 @@ while ~converged && (numiter < params.Niter)
     %TODO: replace with sampling distribution that tries to cover range
     %rather than picking independently
     
-    %for Algorithm 2 enough to compute for nearest Nn
-    if params.Algorithm == 2
+    %for Algorithm 2 and 4 need to sample random context 
+    if params.Algorithm == 2 || params.Algorithm == 4
         context = samplerange(params.xmin([sti sei]), params.xmax([sti sei]), 1);
+        if ~isempty(sti)
+            context(sti) = randsample(st_trials, 1);
+            % st part of context is not used anyway
+        end
+        % enough to compute ACES for nearest Nn to random se
         if se_dim
             dm = zeros(size(se_trials,1),1);
             for i=1:size(se_trials,1)
@@ -586,9 +592,8 @@ while ~converged && (numiter < params.Niter)
     %         [minval1, best] = min(minval);
     %         xatmin1 = xatmin(:,best)';
     
-    
     % construct ACES function for this GP
-    if params.Algorithm == 1
+    if params.Algorithm == 1 || params.Algorithm == 3
         % there is no random context, also has to search for SE space
         context = [];
         ssei = sei;
@@ -598,27 +603,37 @@ while ~converged && (numiter < params.Niter)
         ssei = [];
         sinvsei = sei;
     end
-
-    rand_start = rng();
-    % rand_start = rng('shuffle');
-    %aces_f = @(x)(ACES(GP, logP_vec, zb_vec, lmb_vec, y_vec, x, trial_contexts, in.st_dim, params, rand_start));
-    %aces_f = @(x)(ACES2(GP, zb, lmb, x, in.st_dim, problem.MapGP, params, rand_start));
-    aces_f = @(x)(ACES3(GP_cell, logP_vec, zb_vec, lmb_vec, st_trials, se_trials, [context(sinvsei) x], params, rand_start));
-    aces_f2 = @(x)(ACES3(GP_cell, logP_vec2, zb_vec2, lmb_vec2, st_trials, se_trials, [context(sinvsei) x], params, rand_start));
     
-    [minval1,xatmin1,hist] = Direct(struct('f', @(x)(aces_f(x'))), [params.xmin([ssei thi])' params.xmax([ssei thi])'], struct('showits', 1, 'maxevals', params.DirectEvals1));
-    if params.DirectEvals2
-        xrange = [params.xmax([ssei thi])' - params.xmin([ssei thi])']/10;
-        xrange = [max(xatmin1-xrange,params.xmin([ssei thi])') min(xatmin1+xrange,params.xmax([ssei thi])') ];
-        [minval2,xatmin2,hist] = Direct(struct('f', @(x)(aces_f(x'))), xrange, struct('showits', 1, 'maxevals', params.DirectEvals2));
-    else
-        minval2 = minval1;
-        xatmin2 = xatmin1;
+    if params.Algorithm == 1 || params.Algorithm == 2
+        
+        rand_start = rng();
+        % rand_start = rng('shuffle');
+        %aces_f = @(x)(ACES(GP, logP_vec, zb_vec, lmb_vec, y_vec, x, trial_contexts, in.st_dim, params, rand_start));
+        %aces_f = @(x)(ACES2(GP, zb, lmb, x, in.st_dim, problem.MapGP, params, rand_start));
+        aces_f = @(x)(ACES3(GP_cell, logP_vec, zb_vec, lmb_vec, st_trials, se_trials, [context(sinvsei) x], params, rand_start));
+        aces_f2 = @(x)(ACES3(GP_cell, logP_vec2, zb_vec2, lmb_vec2, st_trials, se_trials, [context(sinvsei) x], params, rand_start));
+        
+        [minval1,xatmin1,hist] = Direct(struct('f', @(x)(aces_f(x'))), [params.xmin([ssei thi])' params.xmax([ssei thi])'], struct('showits', 1, 'maxevals', params.DirectEvals1));
+        if params.DirectEvals2
+            xrange = [params.xmax([ssei thi])' - params.xmin([ssei thi])']/10;
+            xrange = [max(xatmin1-xrange,params.xmin([ssei thi])') min(xatmin1+xrange,params.xmax([ssei thi])') ];
+            [minval2,xatmin2,hist] = Direct(struct('f', @(x)(aces_f(x'))), xrange, struct('showits', 1, 'maxevals', params.DirectEvals2));
+        else
+            minval2 = minval1;
+            xatmin2 = xatmin1;
+        end
+        
+    elseif params.Algorithm == 3 || params.Algorithm == 4
+        % RBOCPS
+        aces_f = @(x)(acq_func_bo2(GP_cell, [context(sinvsei)', x], params.kappa));
+        [xatmin2 minval2] = ACESpolicy(@(x)(aces_f(x')), [params.xmin([ssei thi])' params.xmax([ssei thi])']);
+        xatmin2 = xatmin2';
+        xatmin1 = xatmin2; minval1 = minval2;
     end
+    
     % add random context if algorithm 2
     xatmin1 = [context(sinvsei); xatmin1];
     xatmin2 = [context(sinvsei); xatmin2];
-    
     xatmin2
     
     GP_full_x = repmat(plot_x, size(GP.x,1), 1);
@@ -636,7 +651,7 @@ while ~converged && (numiter < params.Niter)
                 aces_values(i,:) = arrayfun(@(b)(aces_fplot([plot_x(1:end-2), b])), xy(i,:));
             end
             
-        elseif params.Algorithm == 2
+        elseif params.Algorithm == 2 || params.Algorithm == 4
             [xx, xy] = ndgrid(linspace(params.xmin(end-1),params.xmax(end-1),10)', linspace(params.xmin(end),params.xmax(end),10)');
             aces_values = arrayfun(@(a,b)(aces_f([plot_x(st_dim+se_dim+1:end-2) a(th_dim>1) b])), xx, xy);
         else
@@ -832,7 +847,8 @@ while ~converged && (numiter < params.Niter)
             %    GPrel = GP;
             %end
             for j=1:size(eval_se_vect,1)
-                [theta, val] = ACESpolicy(GPrel, eval_se_vect(j,:), [params.xmin(thi)' params.xmax(thi)']);
+                acqfun = @(theta)(gp(GPrel.hyp, [], [], GPrel.covfunc, GPrel.likfunc, GPrel.x, GPrel.y, [eval_se_vect(j,:) theta']));
+                [theta, val] = ACESpolicy(acqfun, [params.xmin(thi)' params.xmax(thi)']);
                 theta_vec(k,:) = theta;
                 pred_vec(k,:) = val;
                 s_vec(k,:) = [eval_st_vect(i,:) eval_se_vect(j,:)];
