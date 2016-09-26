@@ -14,6 +14,7 @@ if (~keep_prev) || ~exist(stat_vec)
     cumm_rew_vec = [];
     seed_vec = {};
 end
+params_vec = {};
 
 reps = size(stat_vec,1)+1:size(stat_vec,1)+repeats;
 parfor i=reps
@@ -26,6 +27,7 @@ parfor i=reps
 
     stat_vec{i} = stat;
     linstat_vec{i} = linstat;
+    params_vec{i} = params;
     % params should be same, so we dont store it in vector
     cumm_rew_vec(:,:,i) = cumm_rew;
     
@@ -36,6 +38,7 @@ end
 stat_vec = [stat_vec{:}]';
 linstat_vec = [linstat_vec{:}]';
 seed_vec = [seed_vec{:}]';
+params = params_vec{1}; %to ensure params is propagated outside of parfor
 
 rep_stats.Rcumm_mean = mean(cumm_rew_vec,3);
 rep_stats.Rcumm_std = std(cumm_rew_vec,0,3);
@@ -55,8 +58,10 @@ for i=1:numel(fields)
         mean_linstat.(fields{i}) = cat(dim, mean_linstat.(fields{i}), linstat_vec(j).(fields{i}));
         %mean_linstat.(fields{i}) = mean_linstat.(fields{i}) + linstat_vec(j).(fields{i});
     end
-    std_linstat.(fields{i}) = std(mean_linstat.(fields{i}), 0, dim);
-    mean_linstat.(fields{i}) = mean(mean_linstat.(fields{i}), dim);
+    if ~isstruct(mean_linstat.(fields{i}))
+        std_linstat.(fields{i}) = std(mean_linstat.(fields{i}), 0, dim);
+        mean_linstat.(fields{i}) = mean(mean_linstat.(fields{i}), dim);
+    end
     %mean_linstat.(fields{i}) = mean_linstat.(fields{i}) ./ length(linstat_vec);
 end
 rep_stats.mean_linstat = mean_linstat;
