@@ -61,7 +61,7 @@ params = struct(...
     'OptimisticMean', 0, ... %lowest possible value (will shift y values)
     ... %TODO these are not normalized!
     'Algorithm', 4, ...   % 1 ACES, 2, BOCPSEntropy, Active-BOCPS, 4 BOCPS (set Ntrial_st=1)
-    'Sampling', 'Thompson3', ...  %can be Thompson, Nothing, Thompson2 Thompson3
+    'Sampling', 'Thompson3', ...  %can be Thompson, Nothing, Thompson2 Thompson3 None
     'kappa', 1.25, ... % kappa for BOCPS acquisition function
     ...
     'LearnHypers', false, ...
@@ -129,6 +129,9 @@ if ~se_dim || params.Algorithm == 4
     params.Ntrial_se = 1;
 end
 params.Nn = min(params.Nn, params.Ntrial_se);
+if params.Algorithm == 3 || params.Algorithm == 4
+    params.Sampling = 'None';
+end
 
 %% setup default GP and override with input if provided
 GP              = struct;
@@ -136,7 +139,7 @@ GP.covfunc      = {@covSEard};       % GP kernel
 GP.covfunc_dx   = {@covSEard_dx_MD}; % derivative of GP kernel. You can use covSEard_dx_MD and covRQard_dx_MD if you use Carl's & Hannes' covSEard, covRQard, respectively.
 GP.likfunc      = {@likGauss};
 hyp = struct;
-hyp.cov         = 2*log([params.sigmaM0; params.sigmaF0]); % hyperparameters for the kernel
+hyp.cov         = log([params.sigmaM0; params.sigmaF0]); % hyperparameters for the kernel
 hyp.lik         = log(params.sigma0); % noise level on signals (log(standard deviation));
 GP.hyp          = hyp;
 GP.res          = 1;
@@ -388,6 +391,9 @@ while ~converged && (numiter < params.Niter)
                     heights = heights / sum(heights);
                     scatter(zbnew(:,end), heights , 'b');
                 end
+            elseif strcmp(params.Sampling, 'None')
+                % do nothing
+                logP = zeros(params.Nbpool, 1);
             else
                 zb_rel = [repmat(se_trials(i_se,:),size(zb,1),1) zb];
                 zb_vec(:,:,i_se, i_st) = zb_rel;
@@ -680,6 +686,7 @@ while ~converged && (numiter < params.Niter)
          display(['length scales: ', num2str(exp(GP.hyp.cov(1:end-1)'))]);
          display([' signal stdev: ', num2str(exp(GP.hyp.cov(end)))]);
          display([' noise stddev: ', num2str(exp(GP.hyp.lik))]);
+         
      end
     
     %% evaluate over contexts
@@ -696,11 +703,7 @@ while ~converged && (numiter < params.Niter)
         
         k=1;
         for i=1:size(eval_st_vect,1)
-            %if st_dim
             GPrel = problem.MapGP(GP, eval_st_vect(i,:), params.LearnHypers);
-            %else
-            %    GPrel = GP;
-            %end
             for j=1:size(eval_se_vect,1)
                 acqfun = @(theta)(gp(GPrel.hyp, [], [], GPrel.covfunc, GPrel.likfunc, GPrel.x, GPrel.y, [eval_se_vect(j,:) theta']));
                 [theta, val] = ACESpolicy(acqfun, [params.xmin(thi)' params.xmax(thi)']);
@@ -711,6 +714,7 @@ while ~converged && (numiter < params.Niter)
             end
         end
         val_vec = problem.sim_eval_func([s_vec theta_vec]);
+        
         current_performance = mean(val_vec)
         linstat.evaluated(numiter,:) = 1;
         %out.val_vec(:,numiter) = val_vec;
@@ -781,7 +785,25 @@ while ~converged && (numiter < params.Niter)
         full_vec = [s_vec theta_vec];
         scatter3(full_vec(:,end-1), full_vec(:,end), curr_m, 'y*');
         % %scatter3(out.FunEst(numiter,1), out.FunEst(numiter,2), in.f(out.FunEst(numiter,:)), 'r*');
-    end
+        
+        % compera with matlab's GP method
+        % result is different (worse initially), i couldnt figure out why
+%         gprMdl = fitrgp(GPrel.x, GPrel.y, ...
+%                 'Basis','none','FitMethod','exact',...
+%                 'PredictMethod','exact','KernelFunction','ardsquaredexponential',...
+%                 'KernelParameters',[params.sigmaM0; params.sigmaF0].^2,...
+%                 'Sigma',params.sigma0, ...
+%                 ...%'SigmaLowerBound', 1e-1*std(GPrel.y), ...
+%                 'Standardize',0);
+%         [full_m full_s2] = gprMdl.predict([repmat(plot_x(st_dim+1:end-2),numel(plotgrid{1}),1) plotgrid{1}(:) plotgrid{2}(:)]);    
+%           full_m = reshape(full_m, size(plotgrid{1}));
+%             full_s2 = reshape(full_s2, size(plotgrid{1}));
+%         figure
+%         mesh(plotgrid{1}, plotgrid{2}, full_m);
+%         hold on;
+%         scatter3(GP_full_x(:,end-1), GP_full_x(:,end), problem.sim_plot_func(GP_full_x), 'ro');
+            
+     end
     drawnow;
     
     %% FOR DEBUG
