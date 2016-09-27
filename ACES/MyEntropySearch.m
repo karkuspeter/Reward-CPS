@@ -125,9 +125,10 @@ end
 if ~st_dim || params.Algorithm == 4
     params.Ntrial_st = 1;
 end
-if ~se_dim
+if ~se_dim || params.Algorithm == 4
     params.Ntrial_se = 1;
 end
+params.Nn = min(params.Nn, params.Ntrial_se);
 
 %% setup default GP and override with input if provided
 GP              = struct;
@@ -811,8 +812,8 @@ while ~converged && (numiter < params.Niter)
     
     %% optimize hyperparameters
     % THIS is not necessary here. MapGP will always optimize hyp if needed
-    GP = problem.MapGP(GP, [], params.LearnHypers);
-%     if params.LearnHypers
+     if params.LearnHypers
+        GP = problem.MapGP(GP, [], params.LearnHypers);         
 %         minimizeopts.length    = 10;
 %         minimizeopts.verbosity = 1;
 %         GP.hyp = minimize(GP.hyp_initial,@(x)params.HyperPrior(x,GP.x,GP.y),minimizeopts);
@@ -824,7 +825,7 @@ while ~converged && (numiter < params.Niter)
          display([' noise stddev: ', num2str(exp(GP.hyp.lik))]);
          
 %         
-%     end
+     end
     
     
     %% evaluate over contexts
