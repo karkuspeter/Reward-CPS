@@ -58,7 +58,7 @@ params = struct(...
     'sigmaF0', 1.5, ... %0.8,...  % how much inputs are correlated - (covariance, not std)
     'sigma0', sqrt(0.003), ... % noise level on signals (standard deviation);
     'Normalize', 0, ... %normalize y values: offse
-    'OptimisticMean', -1, ... %lowest possible value (will shift y values)
+    'OptimisticMean', 0, ... %lowest possible value (will shift y values)
     ... %TODO these are not normalized!
     'Algorithm', 4, ...   % 1 ACES, 2, BOCPSEntropy, Active-BOCPS, 4 BOCPS (set Ntrial_st=1)
     'Sampling', 'Thompson3', ...  %can be Thompson, Nothing, Thompson2 Thompson3
@@ -136,8 +136,8 @@ GP.covfunc      = {@covSEard};       % GP kernel
 GP.covfunc_dx   = {@covSEard_dx_MD}; % derivative of GP kernel. You can use covSEard_dx_MD and covRQard_dx_MD if you use Carl's & Hannes' covSEard, covRQard, respectively.
 GP.likfunc      = {@likGauss};
 hyp = struct;
-hyp.cov         = log([params.sigmaM0; params.sigmaF0]); % hyperparameters for the kernel
-hyp.lik         = log(params.sigma0); % noise level on signals (log(standard deviation));
+hyp.cov         = 2*log([params.sigmaM0; params.sigmaF0]); % hyperparameters for the kernel
+hyp.lik         = 2*log(params.sigma0); % noise level on signals (log(standard deviation));
 GP.hyp          = hyp;
 GP.res          = 1;
 GP.offset       = -params.OptimisticMean;
