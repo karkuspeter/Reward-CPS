@@ -213,12 +213,12 @@ while ~converged && (numiter < params.Niter)
     numiter = numiter + 1;
     fprintf('\n');
     disp(['iteration number ' num2str(numiter)])
-    %     try
+
+        
+    %% Build context representers
     st_trials = samplerange(params.xmin(sti), params.xmax(sti), params.Ntrial_st);
     se_trials = samplerange(params.xmin(sei), params.xmax(sei), params.Ntrial_se);
     % SORT does not make sense for higher dim!
-    %TODO: replace with sampling distribution that tries to cover range
-    %rather than picking independently
     
     %for Algorithm 2 and 4 need to sample random context 
     if params.Algorithm == 2 || params.Algorithm == 4
@@ -242,22 +242,8 @@ while ~converged && (numiter < params.Niter)
     end
     
     zb = samplerange(params.xmin(thi), params.xmax(thi), params.Nbpool);
-    %zb = sort(zb);
-    
     lmb = log(norm(params.xmax([sei thi]) - params.xmin([sei thi])));
     % log(params.Nb); %= -log(1/Nb) %log of uniform measure, |I|^-1
-    
-    %     if th_dim == 1
-    %        [zt,sorti] = sort(zb(:,end)); %theta line
-    %          vals = [(zt(2)-zt(1))/2 + zt(1)-params.xmin(end);
-    %                   (zt(3:end) - zt(1:end-2))/2;
-    %                   params.xmax(end) - zt(end) + (zt(end)-zt(end-1))/2];
-    %          vals(sorti) = vals; %restore order
-    %          lmb = lmb + log(vals);
-    %          %TODO this is not good, need better representers
-    %     else
-    %         disp('Note: for theta_dim > 1 this is not great\n');
-    %     end
     
     % generate zb, logP vectors for each trial se
     zb_vec = zeros(params.Nb, se_dim+th_dim, size(se_trials,1), params.Ntrial_st);
@@ -273,11 +259,11 @@ while ~converged && (numiter < params.Niter)
     for i_st=1:params.Ntrial_st
         GP_cell{i_st} = problem.MapGP(GP, st_trials(i_st,:), params.LearnHypers);
         for i_se=1:size(se_trials,1)
-            %             zb_vec(:,:,i_se, i_st) = [repmat(se_trials(i_se,:),params.Nb,1) zb];
-            %             lmb_vec(:,:,i_se, i_st) = lmb;
-            %             logP_vec(:,:,i_se, i_st) = EstPmin(GP_cell{i_st}, zb_vec(:,:,i_se, i_st), params.S, randn(size(zb,1), params.S));  %joint_min(Mb_vec(:,:,i), Vb_vec(:,:,i), 1);
-            
-            %% Sample from current Pmin ==? Thompson sampling
+%             zb_vec(:,:,i_se, i_st) = [repmat(se_trials(i_se,:),params.Nb,1) zb];
+%             lmb_vec(:,:,i_se, i_st) = lmb;
+%             logP_vec(:,:,i_se, i_st) = EstPmin(GP_cell{i_st}, zb_vec(:,:,i_se, i_st), params.S, randn(size(zb,1), params.S));  %joint_min(Mb_vec(:,:,i), Vb_vec(:,:,i), 1);
+
+%             % Sample from current Pmin ==? Thompson sampling
 %             zbnew = zeros(params.Nb, se_dim+th_dim);
 %             for i=1:params.Nb
 %                 pool = samplerange(params.xmin(thi), params.xmax(thi), params.Nbpool);
@@ -287,8 +273,8 @@ while ~converged && (numiter < params.Niter)
 %             end
 %             [~, ind] = sort(zbnew(:,end));
 %             zbnew = zbnew(ind, :);
-            
-            %% Sample from current Pmin more efficiently (approx)
+
+            % % Sample from current Pmin more efficiently (approx)
             %pool = samplerange(params.xmin(thi), params.xmax(thi), params.Nbpool);
             if strcmp(params.Sampling, 'Thompson')
                 pool = zb;
@@ -298,7 +284,7 @@ while ~converged && (numiter < params.Niter)
                 [~, ind] = sort(zbnew(:,end));
                 zbnew = zbnew(ind, :);
             
-%             % compute weights (u in paper)
+%             % compute weights (u in paper) with nearest neighbors
 %             % it should be the actual Pmin, but we cant really represent
 %             % that, exactly thats why we are trying better sampling 
 %             % locations..
@@ -444,8 +430,8 @@ while ~converged && (numiter < params.Niter)
                 %scatter(zb_rel(sel,end), u(sel))
             end
             
-                        %% Beta distribution strategy
-%              zb_rel = [repmat(se_trials(i_se,:),size(zb,1),1) zb];
+%            % Beta distribution strategy
+%            zb_rel = [repmat(se_trials(i_se,:),size(zb,1),1) zb];
 %            logP = EstPmin(GP_cell{i_st}, zb_rel, params.S, randn(size(zb,1), params.S));  %joint_min(Mb_vec(:,:,i), Vb_vec(:,:,i), 1);
 %                        
 %             alpha = 200*exp(logP);
@@ -481,118 +467,8 @@ while ~converged && (numiter < params.Niter)
         
     end
 
-    
-    %% obsolate version
-    %         % sample belief and evaluation points
-    %         %[zb,lmb]   = SampleBeliefLocations(GP,in.xmin,in.xmax,in.Nb,BestGuesses,in.PropFunc);
-    %         %TODO should be Thompson sampling. This EI based is absolutely not
-    %         %good
-    %         % these are the locations where pmin will be approximated
-    %         % uses expected improvement (EI) to select good points
-    %         % zb are the points, lmb is a measure according to EI.
-    %         % In ACES paper the uniform measure Ui is lmb
-    %
-    %         [Mb,Vb]    = GP_moments(GP,zb); % this was 3 time faster than gp function
-    %
-    %         %[m my_s2] = gp(GP.hyp, [], [], GP.covfunc, GP.likfunc, GP.x, GP.y, zb);
-    %
-    %         % belief over the minimum on the sampled set
-    %         [logP,dlogPdM,dlogPdV,ddlogPdMdM] = joint_min(Mb,Vb);        % p(x=xmin)
-    %        % this is discrete distr p(x==xmin) using expectation propagation
-    %
-    %         out.Hs(numiter) = - sum(exp(logP) .* (logP + lmb));       % current Entropy
-    %
-    %         % store the best current guess as start point for later optimization.
-    %         [~,bli] = max(logP + lmb);
-    %         % is this far from all the best guesses? If so, then add it in.
-    %         ell = exp(GP.hyp.cov(1:D))';
-    %         if isempty(BestGuesses)
-    %             BestGuesses(1,:) = zb(bli,:);
-    %         else
-    %             dist = min(sqrt(sum(bsxfun(@minus,zb(bli,:)./ell,bsxfun(@rdivide,BestGuesses,ell)).^2,2)./D));
-    %             if dist > 0.1
-    %                 BestGuesses(size(BestGuesses,1)+1,:) = zb(bli,:);
-    %             end
-    %         end
-    %         % BestGuesses are used as initial points for optimization of GP min
-    %        % not used for selecting the next query point
-    %
-    %         dH_fun     = dH_MC_local(zb,GP,logP,dlogPdM,dlogPdV,ddlogPdMdM,in.T,lmb,in.xmin,in.xmax,false,in.LossFunc);
-    %         dH_fun_p   = dH_MC_local(zb,GP,logP,dlogPdM,dlogPdV,ddlogPdMdM,in.T,lmb,in.xmin,in.xmax,true,in.LossFunc);
-    %         % sample some evaluation points. Start with the most likely min in zb.
-    %         [~,mi]     = max(logP);
-    %         xx         = zb(mi,:);
-    %         Xstart     = zeros(in.Ne,D);
-    %         Xend       = zeros(in.Ne,D);
-    %         Xdhi       = zeros(in.Ne,1);
-    %         Xdh        = zeros(in.Ne,1);
-    %         fprintf('\n sampling start points for search for optimal evaluation points\n')
-    %         xxs = zeros(10*in.Ne,D);
-    %         for i = 1:10 * in.Ne
-    %             if mod(i,10) == 1 && i > 1; xx = in.xmin + (in.xmax - in.xmin) .* rand(1,D); end;
-    %             xx     = Slice_ShrinkRank_nolog(xx,dH_fun_p,S0,true);
-    %             xxs(i,:) = xx;
-    %             if mod(i,10) == 0; Xstart(i/10,:) = xx; Xdhi(i/10) = dH_fun(xx); end
-    %         end
-    %
-    % %         my_dh = @(x)(LossFunction(GP, logP, zb, lmb, x, [], myparams));
-    %
-    % %          test = [];
-    % %         for i=1:in.Ne
-    % %             temp = [];
-    % %             for j=1:10
-    % %                 temp(:,j) = my_dh(Xstart(i,:));
-    % %             end
-    % %             test = [test; Xstart(i,:) dH_fun(Xstart(i,:)) mean(temp,2) temp std(temp)];
-    % %
-    % %         end
-    % %
-    % optimize for each evaluation point:
-    %         fprintf('local optimizations of evaluation points\n')
-    %         for i = 1:in.Ne
-    %             [Xend(i,:),Xdh(i)] = fmincon(dH_fun,Xstart(i,:),[],[],[],[],in.xmin,in.xmax,[], ...
-    %                 optimset('MaxFunEvals',20,'TolX',eps,'Display','off','GradObj','on'));
-    %
-    %         end
-    %         % which one is the best?
-    %         [xdhbest,xdhbv]   = min(Xdh);
-    
-    
-    %% optiization with CMA-ES
-    %         fprintf('optimize with CMA-ES\n')
-    %         opts = cmaes('defaults');
-    %         opts.UBounds = in.xmax';
-    %         opts.LBounds = in.xmin';
-    %         opts.Restarts = 0;
-    %         opts.DispFinal = 'off';
-    %         opts.DispModulo = 'Inf';
-    %         opts.Noise.on = 0;  %1
-    %         opts.SaveVariables = 'on';
-    %         opts.Resume = 'no';
-    %         opts.MaxFunEvals = 100;
-    %         opts.PopSize = 10;
-    %         %opts.StopOnEqualFunctionValues = 100;
-    %         %opts.WarnOnEqualFunctionValues = 0;
-    %         %xstart = sprintf('%f + %f.*rand(%f,1)', theta_bounds(:,1), theta_bounds(:,2)-theta_bounds(:,1), size(theta_bounds,1)  );
-    %         %xstart = Xstart(xdhbv,:);
-    %         xstart = repmat(in.xmin, in.Ne,1) + rand(in.Ne, D).*repmat(in.xmax - in.xmin, in.Ne, 1);
-    %         insigma = (in.xmax-in.xmin)'/3;
-    %
-    %         xatmin = zeros(D, in.Ne);
-    %         minval = zeros(1,in.Ne);
-    %         for i=1:in.Ne
-    %             [xatmin(:,i), minval(:,i), counteval, ~, cmaesout] = cmaes( ...
-    %             @(x)(aces_f(x')), ...    % name of objective/fitness function
-    %             xstart(i,:)', ...    % objective variables initial point, determines N
-    %             insigma, ...   % initial coordinate wise standard deviation(s)
-    %             opts ...    % options struct, see defopts below
-    %             );
-    %             counteval
-    %         end
-    %         [xatmin' minval']
-    %         [minval1, best] = min(minval);
-    %         xatmin1 = xatmin(:,best)';
-    
+    %% ACES function
+     
     % construct ACES function for this GP
     if params.Algorithm == 1 || params.Algorithm == 3
         % there is no random context, also has to search for SE space
@@ -640,7 +516,7 @@ while ~converged && (numiter < params.Niter)
     GP_full_x = repmat(plot_x, size(GP.x,1), 1);
     GP_full_x(:,[sei thi]) = GP.x;
     
-    %% print ACES function
+    %% plot ACES function
     if PlotModulo.ACES && ~mod(numiter, PlotModulo.ACES)
         fprintf('plot ACES function\n')
         if se_dim+th_dim < 2
@@ -793,23 +669,7 @@ while ~converged && (numiter < params.Niter)
     % helpers for later plots: include st for GP samples (only se and th)
     GP_full_x = repmat(plot_x, size(GP.x,1), 1);
     GP_full_x(:,[sei thi]) = GP.x;
-    
-    
-    %         % estimate minimum
-    %         %MeanEsts(numiter,:) = sum(bsxfun(@times,zb,exp(logP)),1);
-    %         %[~,MAPi]            = max(logP + lmb);
-    %         %MAPEsts(numiter,:)  = zb(MAPi,:);
-    %
-    %         %fprintf('finding current best guess\n')
-    %         %[out.FunEst(numiter,:),FunVEst] = FindGlobalGPMinimum(BestGuesses,GP,in.xmin,in.xmax);
-    %         % % is the new point very close to one of the best guesses?
-    %         %[cv,ci] = min(sum(bsxfun(@minus,out.FunEst(numiter,:)./ell,bsxfun(@rdivide,BestGuesses,ell)).^2,2)./D);
-    %         %if cv < 2.5e-1 % yes. Replace it with this improved guess
-    %         %    BestGuesses(ci,:)  = out.FunEst(numiter,:);
-    %         %else % no. Add it to the best guesses
-    %         %    BestGuesses(size(BestGuesses,1)+1,:) = out.FunEst(numiter,:);
-    %         %end
-    
+   
     %% optimize hyperparameters
     % THIS is not necessary here. MapGP will always optimize hyp if needed
      if params.LearnHypers
@@ -823,10 +683,7 @@ while ~converged && (numiter < params.Niter)
          display(['length scales: ', num2str(exp(GP.hyp.cov(1:end-1)'))]);
          display([' signal stdev: ', num2str(exp(GP.hyp.cov(end)))]);
          display([' noise stddev: ', num2str(exp(GP.hyp.lik))]);
-         
-%         
      end
-    
     
     %% evaluate over contexts
     s_vec = zeros(prod(params.Neval([sti sei])),st_dim+se_dim);
