@@ -52,11 +52,11 @@ params = struct(...
     'DirectEvals1', 40, ...  % number of maximum function evaluations for DIRECT search
     'DirectEvals2', 40, ...
     ... % GP parameters. only used if GP is not provided. covarianve values
-    'sigmaM0', 0.4, ... %0.45^2, ...%[0.01; 0.01],... %; 0.1], ... % lengthscale, how much inputs should be similar in that dim.
+    'sigmaM0', 0.4, ... %[0.01; 0.01],... % lengthscale (std, not cov), how much inputs should be similar in that dim.
     ...               % i.e. how far inputs should influence each other
     ...               % can be single value or vector for each theta dim
-    'sigmaF0', 1.5, ... %0.8,...  % how much inputs are correlated - (covariance, not std)
-    'sigma0', sqrt(0.003), ... % noise level on signals (standard deviation);
+    'sigmaF0', 1.5, ... %0.8,...  % how much inputs are correlated - (std, not cov)
+    'sigma0', sqrt(0.003), ... % noise level on signals (std, not cov);
     'Normalize', 0, ... %normalize y values: offse
     'OptimisticMean', 0, ... %lowest possible value (will shift y values)
     ... %TODO these are not normalized!
@@ -137,7 +137,7 @@ GP.covfunc_dx   = {@covSEard_dx_MD}; % derivative of GP kernel. You can use covS
 GP.likfunc      = {@likGauss};
 hyp = struct;
 hyp.cov         = 2*log([params.sigmaM0; params.sigmaF0]); % hyperparameters for the kernel
-hyp.lik         = 2*log(params.sigma0); % noise level on signals (log(standard deviation));
+hyp.lik         = log(params.sigma0); % noise level on signals (log(standard deviation));
 GP.hyp          = hyp;
 GP.res          = 1;
 GP.offset       = -params.OptimisticMean;
@@ -173,9 +173,6 @@ GP.inf = {@infPrior, @infExact, prior};
 
 % optimize hyper parameters if needed
 GP = problem.MapGP(GP, [], params.LearnHypers);
-
-%hyp = minimize(GP.hyp,@(x)gp(x, GP.inf, [], GP.covfunc, GP.likfunc, GP.x, GP.y),minimizeopts);
-%{@infPrior,@infExact,params.HyperPrior}
 
 %% construct evaluation grid
 evalgrid = evalgridfun(params.xmin, params.xmax, params.Neval);
