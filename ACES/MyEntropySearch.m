@@ -60,7 +60,7 @@ params = struct(...
     'Normalize', 0, ... %normalize y values: offse
     'OptimisticMean', 0, ... %lowest possible value (will shift y values)
     ... %TODO these are not normalized!
-    'Algorithm', 4, ...   % 1 ACES, 2, BOCPSEntropy, Active-BOCPS, 4 BOCPS (set Ntrial_st=1)
+    'Algorithm', 3, ...   % 1 ACES, 2, BOCPSEntropy, 3 Active-BOCPS, 4 BOCPS with direct+direct (set Ntrial_st=1) 5 BOCPS with that optimization method
     'Sampling', 'Thompson3', ...  %can be Thompson, Nothing, Thompson2 Thompson3 None
     'kappa', 1.25, ... % kappa for BOCPS acquisition function
     ...
@@ -122,14 +122,14 @@ thi = s_dim+1:D;
 if size(params.sigmaM0,1) == 1
     params.sigmaM0 = repmat(params.sigmaM0, se_dim+th_dim, 1);
 end
-if ~st_dim || params.Algorithm == 4
+if ~st_dim || params.Algorithm == 4 || params.Algorithm == 5
     params.Ntrial_st = 1;
 end
-if ~se_dim || params.Algorithm == 4
+if ~se_dim || params.Algorithm == 4 || params.Algorithm == 5
     params.Ntrial_se = 1;
 end
 params.Nn = min(params.Nn, params.Ntrial_se);
-if params.Algorithm == 3 || params.Algorithm == 4
+if params.Algorithm == 3 || params.Algorithm == 4 || params.Algorithm == 5
     params.Sampling = 'None';
 end
 
@@ -220,12 +220,16 @@ while ~converged && (numiter < params.Niter)
     se_trials = samplerange(params.xmin(sei), params.xmax(sei), params.Ntrial_se);
     % SORT does not make sense for higher dim!
     
-    %for Algorithm 2 and 4 need to sample random context 
-    if params.Algorithm == 2 || params.Algorithm == 4
-        context = samplerange(params.xmin([sti sei]), params.xmax([sti sei]), 1);
+    %for Algorithm 2 and 4, 5 need to sample random context 
+    if params.Algorithm == 2 || params.Algorithm == 4 || params.Algorithm == 5
+        %context = samplerange(params.xmin([sti sei]), params.xmax([sti sei]), 1);
+        context = zeros(1,st_dim+se_dim);
         if ~isempty(sti)
-            context(sti) = randsample(st_trials, 1);
+            context(sti) = st_trials(1,:);
             % st part of context is not used anyway
+        end
+        if ~isempty(sei)
+            context(sei) = se_trials(1,:);
         end
         % enough to compute ACES for nearest Nn to random se
         if se_dim
@@ -236,29 +240,39 @@ while ~converged && (numiter < params.Niter)
             [sortedX, sortedIndices] = sort(dm,'ascend');
             rel_se_inds = sortedIndices(1:params.Nn);
             se_trials = se_trials(rel_se_inds,:);
-            %se_trials = sort(se_trials(rel_se_inds,:)); FAILS FOR HIGHER DIM 
-         
         end
     end
     
     zb = samplerange(params.xmin(thi), params.xmax(thi), params.Nbpool);
     lmb = log(norm(params.xmax([sei thi]) - params.xmin([sei thi])));
+    logP = zeros(params.Nbpool, 1); %just so plot doesnt fail when unused
     % log(params.Nb); %= -log(1/Nb) %log of uniform measure, |I|^-1
     
-    % generate zb, logP vectors for each trial se
+    % generate zb, logP vectors for each trial se, st pairs
     zb_vec = zeros(params.Nb, se_dim+th_dim, size(se_trials,1), params.Ntrial_st);
     lmb_vec = zeros(params.Nb, 1, size(se_trials,1), params.Ntrial_st);
     logP_vec = zeros(params.Nb, 1, size(se_trials,1), params.Ntrial_st);
+    offset_vec = zeros(1, 1, size(se_trials,1), params.Ntrial_st); % used to offset BOCPS acquisition function with best predicted reward at (st,se)
     GP_cell = cell(params.Ntrial_st, 1);
     
     zb_vec2 = zeros(params.Nbpool, se_dim+th_dim, size(se_trials,1), params.Ntrial_st);
     lmb_vec2 = zeros(params.Nbpool, 1, size(se_trials,1), params.Ntrial_st);
     logP_vec2 = zeros(params.Nbpool, 1, size(se_trials,1), params.Ntrial_st);
 
-    
+    % construct GP_cell for each st
     for i_st=1:params.Ntrial_st
         GP_cell{i_st} = problem.MapGP(GP, st_trials(i_st,:), params.LearnHypers);
+    end
+    
+    % construct zb representers for se+th 
+    for i_st=1:params.Ntrial_st
         for i_se=1:size(se_trials,1)
+            if (params.Algorithm == 3)
+                 acqfun = @(theta)(gp(GP_cell{i_st}.hyp, [], [], GP_cell{i_st}.covfunc, GP_cell{i_st}.likfunc, GP_cell{i_st}.x, GP_cell{i_st}.y, [se_trials(i_se,:) theta']));
+                 [minval1,~, ~] = Direct(struct('f', acqfun), [params.xmin(thi)' params.xmax(thi)'], struct('showits', 0));
+                 offset_vec(1,1,i_se,i_st) = minval1;
+                 continue;
+            end
 %             zb_vec(:,:,i_se, i_st) = [repmat(se_trials(i_se,:),params.Nb,1) zb];
 %             lmb_vec(:,:,i_se, i_st) = lmb;
 %             logP_vec(:,:,i_se, i_st) = EstPmin(GP_cell{i_st}, zb_vec(:,:,i_se, i_st), params.S, randn(size(zb,1), params.S));  %joint_min(Mb_vec(:,:,i), Vb_vec(:,:,i), 1);
@@ -393,7 +407,7 @@ while ~converged && (numiter < params.Niter)
                 end
             elseif strcmp(params.Sampling, 'None')
                 % do nothing
-                logP = zeros(params.Nbpool, 1);
+                %logP = zeros(params.Nbpool, 1);
             else
                 zb_rel = [repmat(se_trials(i_se,:),size(zb,1),1) zb];
                 zb_vec(:,:,i_se, i_st) = zb_rel;
@@ -484,6 +498,7 @@ while ~converged && (numiter < params.Niter)
         sinvsei = sei;
     end
     
+    % choose acquisition function to optimize
     if params.Algorithm == 1 || params.Algorithm == 2
         
         rand_start = rng();
@@ -491,8 +506,15 @@ while ~converged && (numiter < params.Niter)
         %aces_f = @(x)(ACES(GP, logP_vec, zb_vec, lmb_vec, y_vec, x, trial_contexts, in.st_dim, params, rand_start));
         %aces_f = @(x)(ACES2(GP, zb, lmb, x, in.st_dim, problem.MapGP, params, rand_start));
         aces_f = @(x)(ACES3(GP_cell, logP_vec, zb_vec, lmb_vec, st_trials, se_trials, [context(sinvsei) x], params, rand_start));
-        aces_f2 = @(x)(ACES3(GP_cell, logP_vec2, zb_vec2, lmb_vec2, st_trials, se_trials, [context(sinvsei) x], params, rand_start));
+        %aces_f2 = @(x)(ACES3(GP_cell, logP_vec2, zb_vec2, lmb_vec2, st_trials, se_trials, [context(sinvsei) x], params, rand_start));
+    elseif params.Algorithm == 3 || params.Algorithm == 4
+        aces_f = @(x)(acq_func_bo3(GP_cell, offset_vec, st_trials, se_trials, [context(sinvsei) x], params));
+    elseif params.Algorithm == 5
+        aces_f = @(x)(acq_func_bo2(GP_cell{1}, [context(sinvsei), x], params.kappa));
+    end
         
+    % optimize 
+    if params.Algorithm == 1 || params.Algorithm == 2 || params.Algorithm == 3 ||  params.Algorithm == 4
         [minval1,xatmin1,hist] = Direct(struct('f', @(x)(aces_f(x'))), [params.xmin([ssei thi])' params.xmax([ssei thi])'], struct('showits', 1, 'maxevals', params.DirectEvals1));
         if params.DirectEvals2
             xrange = [params.xmax([ssei thi])' - params.xmin([ssei thi])']/10;
@@ -502,16 +524,15 @@ while ~converged && (numiter < params.Niter)
             minval2 = minval1;
             xatmin2 = xatmin1;
         end
-        
-    elseif params.Algorithm == 3 || params.Algorithm == 4
+       
+    elseif  params.Algorithm == 5
         % RBOCPS
-        aces_f = @(x)(acq_func_bo2(GP_cell, [context(sinvsei)', x], params.kappa));
         [xatmin2 minval2] = ACESpolicy(@(x)(aces_f(x')), [params.xmin([ssei thi])' params.xmax([ssei thi])']);
         xatmin2 = xatmin2';
         xatmin1 = xatmin2; minval1 = minval2;
     end
     
-    % add random context if algorithm 2
+    % add random context if algorithm 2, 4, or 5
     xatmin1 = [context(sinvsei); xatmin1];
     xatmin2 = [context(sinvsei); xatmin2];
     xatmin2
@@ -531,7 +552,7 @@ while ~converged && (numiter < params.Niter)
                 aces_values(i,:) = arrayfun(@(b)(aces_fplot([plot_x(1:end-2), b])), xy(i,:));
             end
             
-        elseif params.Algorithm == 2 || params.Algorithm == 4
+        elseif params.Algorithm == 2 || params.Algorithm == 4 || params.Algorithm == 5
             [xx, xy] = ndgrid(linspace(params.xmin(end-1),params.xmax(end-1),10)', linspace(params.xmin(end),params.xmax(end),10)');
             aces_values = arrayfun(@(a,b)(aces_f([plot_x(st_dim+se_dim+1:end-2) a(th_dim>1) b])), xx, xy);
         else
@@ -788,6 +809,7 @@ while ~converged && (numiter < params.Niter)
         
         % compera with matlab's GP method
         % result is different (worse initially), i couldnt figure out why
+        % PROBABLY default mean function is mean(y) rather than 0
 %         gprMdl = fitrgp(GPrel.x, GPrel.y, ...
 %                 'Basis','none','FitMethod','exact',...
 %                 'PredictMethod','exact','KernelFunction','ardsquaredexponential',...
