@@ -1,4 +1,4 @@
-function [a, A, cov, rew, eta, theta] = reps_state(a, sigs, contextFunc, rewFunc, epsilon, samples, episodes, etatheta)
+function [a, A, cov, rew, eta, theta, hist] = reps_state(a, sigs, contextFunc, rewFunc, epsilon, samples, episodes, etatheta)
 % This script simulates the learning with contextual REPS
 %
 % Inputs:
@@ -19,6 +19,7 @@ S = [];
 r = [];
 N = samples;
 C = [];
+hist = struct('a', [], 'A', [], 'cov', []);
 
 dim = length(a);
 cov = diag(sigs.^2);
@@ -103,7 +104,7 @@ for e = 1:episodes
     a = aA(1, :)';   
     A = aA(2:end, :)';
 
-    bsxfun(@minus, S, a);
+    bsxfun(@minus, S, a');
     dummy = S - bsxfun(@plus, a , A*C')';
     cov = bsxfun(@times, p, dummy)'*dummy / sum(p);
 
@@ -124,7 +125,10 @@ for e = 1:episodes
     thetaprev = theta;
 
     rew(e) = mean(r);
-  
+    hist.a(e,:) = a(:)';
+    hist.A(e,:) = A(:)';
+    hist.cov(e,:) = cov(:)';
+    
 % 	rexp = r(:)'*p;
 % 	rvar = (r(:)-rexp)'*((r(:)-rexp).*p);
 % 
