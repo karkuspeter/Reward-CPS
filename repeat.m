@@ -1,7 +1,7 @@
 if ~exist('no_params') || no_params == 0
     repeats = 6;
     keep_prev = 0;
-    spider_func = @RBOCPS; %@MyEntropySearch; %@RBOCPS;
+    spider_func = @creps; %@MyEntropySearch; %@RBOCPS;
     show_func = @ShowRepeatResults;
     reward_name = 'R_mean';
     run_struct = struct('output_off',1,'method',2);
@@ -30,10 +30,7 @@ parfor i=reps
     params_vec{i} = params;
     % params should be same, so we dont store it in vector
     cumm_rew_vec(:,:,i) = cumm_rew;
-    
-    %if (linstat.R_mean(end) < 2.5)
-    %    disp('Low performance');
-    %end
+
 end
 stat_vec = [stat_vec{:}]';
 linstat_vec = [linstat_vec{:}]';

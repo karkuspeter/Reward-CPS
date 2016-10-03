@@ -1,9 +1,14 @@
 function [ stats, linstat, params ] = creps(input_params)
 
+%TODO: it will perform bad with noisy observations
+%add Ntheta / Nsamples
+
+% for st context generate M samples and reweight
+
 params = struct(...
     'problem', ToyCannon0D1D2D, ...
     'Neval', [20, 20, 20], ... %evaluation points over contexts
-    'Algorithm', 1, ...   % 1 creps
+    'Algorithm', 2, ...   % 1 FCREPS, 2 CREPS
     'Niter', 110, ...  %number of interactions with world. Episodes = Niter/Nsamples;
     'Nsamples', 10, ... %number of samples obtained from system at each episode
     'epsilon', 1, ... %epsilon for REPS (entropy bound, should be around 1)
@@ -56,13 +61,23 @@ end
 if isempty(sigs)
     sigs = (problem.theta_bounds(:,2)-problem.theta_bounds(:,1))/2;
 end
-contextFunc = @(n)(samplerange(...
-    [problem.st_bounds(:,1); problem.se_bounds(:,1)],...
-    [problem.st_bounds(:,2); problem.se_bounds(:,2)], n));
-rewFunc = @(s, theta)(-problem.sim_eval_func([s, theta])); %keep bounds
+stFunc = @(n)(samplerange(...
+    problem.st_bounds(:,1), problem.st_bounds(:,2), n));
+seFunc = @(n)(samplerange(...
+    problem.se_bounds(:,1), problem.se_bounds(:,2), n));
+contextFunc = @(n)([stFunc(n); seFunc(n)]);
+
+simFunc = @(s, theta)(problem.sim_eval_func([s, theta])); %keep bounds
+rewFunc = @(s, theta, obs)(-problem.r_func(s, theta, obs));
 etatheta = [params.eta, 0.1*rand(1,2+size(problem.se_bounds,1)+size(problem.st_bounds,1))];
 
-[a, A, cov, rew, eta, theta, hist] = reps_state(a, sigs, contextFunc, rewFunc, params.epsilon, params.Nsamples, episodes, etatheta);
+% execute REPS
+if (params.Algorithm == 1)
+    [a, A, cov, rew, eta, theta, hist] = fact_reps_state(a, sigs, ...
+           stFunc, seFunc, rewFunc, simFunc, params.epsilon, params.Nsamples, episodes, etatheta);
+else
+    [a, A, cov, rew, eta, theta, hist] = reps_state(a, sigs, contextFunc, simFunc, params.epsilon, params.Nsamples, episodes, etatheta);
+end
 
 % need to evaluate from history
 linstat.R_mean = zeros(params.Niter, 1); 
