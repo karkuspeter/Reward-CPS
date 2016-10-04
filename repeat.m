@@ -1,10 +1,10 @@
 if ~exist('no_params') || no_params == 0
-    repeats = 6;
+    repeats = 10;
     keep_prev = 0;
     spider_func = @creps; %@MyEntropySearch; %@RBOCPS;
     show_func = @ShowRepeatResults;
     reward_name = 'R_mean';
-    run_struct = struct('output_off',1,'method',2);
+    run_struct = struct('output_off',1);
     NeedNewFigure = true;
 end
 
@@ -18,7 +18,7 @@ params_vec = {};
 
 reps = size(stat_vec,1)+1:size(stat_vec,1)+repeats;
 parfor i=reps
-    fprintf('%d / %d', i, repeats);
+    fprintf('%d / %d\n', i, repeats);
     % random seed is supposed to be different in each worker, just save it for reproducability
     seed_vec{i} = rng();
     
@@ -68,3 +68,13 @@ if exist('NeedNewFigure') && NeedNewFigure
     figure
 end
 show_func()
+
+% figure
+% hold on
+% for i=1:4
+% h = plot_confidence([0; mask'], [0; rep_stats.mean_linstat.cov(mask,i)], [0; rep_stats.std_linstat.cov(mask,i)]);
+% scatter(mask', rep_stats.mean_linstat.cov(mask,i), 'r*');
+% end
+% xlabel('Iteration')
+% ylabel('R averaged over all contexts')
+

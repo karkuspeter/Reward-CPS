@@ -6,16 +6,17 @@ function [ stats, linstat, params ] = creps(input_params)
 % for st context generate M samples and reweight
 
 params = struct(...
-    'problem', ToyCannon0D1D2D, ...
+    'problem', ToyCannon1D0D2D, ...
     'Neval', [20, 20, 20], ... %evaluation points over contexts
-    'Algorithm', 2, ...   % 1 FCREPS, 2 CREPS
-    'Niter', 110, ...  %number of interactions with world. Episodes = Niter/Nsamples;
+    'Algorithm', 3, ...   % 1 FCREPS, 2 CREPS, 3 FCREPS with myreps
+    'Nart', 1, ...     %number of artificial st samples for FCREPS
+    'Niter', 1100, ...  %number of interactions with world. Episodes = Niter/Nsamples;
     'Nsamples', 10, ... %number of samples obtained from system at each episode
     'epsilon', 1, ... %epsilon for REPS (entropy bound, should be around 1)
 	'eta', 0.001, ...100, ... %eta for REPS
     'mu_init', [], ... %[theta_dim, 1]; default mean(problem.theta_bounds,2)
     'sigma_init', [], ... %[theta_dim, 1]; default sigs = (problem.theta_bounds(:,2)-problem.theta_bounds(:,1))/2
-    'InitialSamples', 9, ...  %minimum 1
+    'InitialSamples', 0, ...  %minimum 1
     'EvalModulo', 1, ... % modulo in terms of episodes, not samples like in Bayesian
     'ReturnOptimal', 1, ... %computes optimal values and put in return struct
     'output_off', 1);
@@ -68,13 +69,13 @@ seFunc = @(n)(samplerange(...
 contextFunc = @(n)([stFunc(n); seFunc(n)]);
 
 simFunc = @(s, theta)(problem.sim_eval_func([s, theta])); %keep bounds
-rewFunc = @(s, theta, obs)(-problem.r_func(s, theta, obs));
+rewFunc = @(s, theta, obs)(problem.r_func(s, theta, obs));
 etatheta = [params.eta, 0.1*rand(1,2+size(problem.se_bounds,1)+size(problem.st_bounds,1))];
 
 % execute REPS
-if (params.Algorithm == 1)
+if (params.Algorithm == 1 || params.Algorithm == 3)
     [a, A, cov, rew, eta, theta, hist] = fact_reps_state(a, sigs, ...
-           stFunc, seFunc, rewFunc, simFunc, params.epsilon, params.Nsamples, episodes, etatheta);
+           problem.st_bounds', stFunc, seFunc, rewFunc, simFunc, params.epsilon, params.Nsamples, params.Nart, episodes, etatheta, params.Algorithm == 3);
 else
     [a, A, cov, rew, eta, theta, hist] = reps_state(a, sigs, contextFunc, simFunc, params.epsilon, params.Nsamples, episodes, etatheta);
 end
@@ -108,6 +109,9 @@ for i=params.EvalModulo:params.EvalModulo:size(hist.a,1)
     linstat.theta_s(stat_i, :) = theta_vec(:)';
     linstat.R_mean(stat_i, :) = mean(val_vec);
     linstat.R_s(stat_i,1) = rew(i);
+    linstat.A(stat_i, :) = A(:);
+    linstat.a(stat_i, :) = a(:);
+    linstat.cov(stat_i, :) = hist.cov(i,:);
     %TODO use appropriate R naming, these are arbitrary
 end
 

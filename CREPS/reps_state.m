@@ -1,4 +1,4 @@
-function [a, A, cov, rew, eta, theta, hist] = reps_state(a, sigs, contextFunc, rewFunc, epsilon, samples, episodes, etatheta)
+function [a, A, cov, rew, eta, theta, hist] = reps_state(a, sigs, contextFunc, simFunc, epsilon, samples, episodes, etatheta)
 % This script simulates the learning with contextual REPS
 %
 % Inputs:
@@ -38,11 +38,10 @@ for e = 1:episodes
         Snew(i, :) = mvnrnd(a + A*C(i, :)', cov, 1)';
     end
 
-	q = ones(N, 1)/N;
     rnew = zeros(N, 1);
     
     for i = 1:N
-        rnew(i) = rewFunc(C(i, :), Snew(i, :));
+        rnew(i) = -simFunc(C(i, :), Snew(i, :));
     end
 
     % you can reuse old samples here
@@ -116,13 +115,15 @@ for e = 1:episodes
         A = Aprev;
         eta = etaprev;
         theta = thetaprev; 
-        break
+        cov = covprev;
+        %break
     end
     
     aprev = a;
     Aprev = A;
     etaprev = eta;
     thetaprev = theta;
+    covprev = cov;
 
     rew(e) = mean(r);
     hist.a(e,:) = a(:)';
