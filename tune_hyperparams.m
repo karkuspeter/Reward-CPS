@@ -1,17 +1,21 @@
 %hyper_params = struct('Algorithm', [1,2]);
 hyper_params = struct(...
-    'problem', '{ToyCannon0D1D2D}', ...
-    'spider_func', '{@MyEntropySearch, @RBOCPS}' ... %);
+    'problem', '{ToyCannon1D0D8D}', ...
+    'kappa', '{5}', ...
+    ...%'LearnHypers', '{true}', ...
+    'Ntrial_st', '{100}', ...  %representers for st space, can be number or vector
+    'Algorithm', '{1, 2, 3, 4}' ... %);
     );
 common_params = struct('output_off', 1, ...
-    'Niter', 50, ...
-    'InitialSamples', 9, ...
-    'Neval', [50 20 20], ...
-    'sigmaM0', 0.45^2, ...
-    'sigmaF0', 0.8,...  % how much inputs are correlated -
-    'sigma0', sqrt(0.003), ... %how noisy my observations are, ...
+    'Niter', 100, ...
+    'InitialSamples', 14, ...
+    'Neval', [50 20 20 20 20 20 20 20 20 20 20 20 20], ...
+    ...%'sigmaM0', 1.45^2, ...
+    ...%'sigmaF0', 0.2,...  % how much inputs are correlated -
+    ...%'sigma0', sqrt(0.003), ... %how noisy my observations are, ...
+    'OptimisticMean', -1, ... %lowest possible value (will shift y values)
     'EvalModulo', 5);
-repeat_setting = 10;
+repeat_setting = 50;
 
 % create a list of all permutations     
 hp_list = [common_params]; % start with params for all executions
@@ -35,12 +39,17 @@ figure
 hold on
 
 % execute each
-h_stats = {};
-h_linstats = {};
-h_params = {};
+if (true)
+    h_stats = {};
+    h_linstats = {};
+    h_params = {};
+    i_tuner_start = 1;
+else
+    i_tuner_start = 3;
+end
 
 seed = rng();
-for i_tuner = 1:numel(hp_list)  %dont use i, its being overwritten inside
+for i_tuner = i_tuner_start:numel(hp_list)  %dont use i, its being overwritten inside
     list_el = hp_list(i_tuner);
     rng(seed);
     
@@ -50,7 +59,7 @@ for i_tuner = 1:numel(hp_list)  %dont use i, its being overwritten inside
     run_struct = list_el
 
     %default
-    spider_func = @RBOCPS;%@MyEntropySearch%@RBOCPS;
+    spider_func = @MyEntropySearch;%@RBOCPS;
     show_func = @ShowRepeatResults;
     reward_name = 'R_mean';
     
@@ -70,6 +79,7 @@ for i_tuner = 1:numel(hp_list)  %dont use i, its being overwritten inside
     h_params{i_tuner} = params;
     
     save('results/hyperparam_temp.mat');
+    drawnow
 end
 
 % make summary
@@ -86,7 +96,8 @@ save(strcat('results/hyper-', datestr(now,'dd-mm-yyyy-HH-MM'), '.mat'));
 % show specific result
 figure
 
-indices = [1 2];
+%indices = 1:numel(hp_list); %[4 5 9 10];%1:numel(hp_list);
+indices = 1:4;
 labels = {};
 plots = {};
 for ind = indices
