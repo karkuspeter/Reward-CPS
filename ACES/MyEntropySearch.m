@@ -38,7 +38,7 @@ function [ stats, linstat, params ] = MyEntropySearch(input_params)
 fprintf 'starting entropy search.\n'
 
 params = struct(...
-    'problem', ToyCannon0D1D2D, ...
+    'problem', ToyCannon1D0D8D, ...
     'GP', struct, ... %user may override this with initial samples, etc
     ...
     'S', 1000, ... %how many samples to take from GP posterior to estimate pmin
@@ -48,9 +48,11 @@ params = struct(...
     'Nn', 8, ...  % only the neares Nn out of Ntrial_se will be evaluated for a context se
     'Nb', 20, ... %number of representers for p_min over theta space generated with Thompson sampling
     'Nbpool', 500, ... %randomply chosen theta value pool for Thompson sampling
-    'Neval', [20, 20, 20], ... %evaluation points over contexts
-    'DirectEvals1', 40, ...  % number of maximum function evaluations for DIRECT search
-    'DirectEvals2', 40, ...
+    'Neval', [50, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20,20,20], ... %evaluation points over contexts
+    'DirectEvals1', 100, ...  % number of maximum function evaluations for DIRECT search
+    'DirectEvals2', 100, ...
+    'DirectIters1', 5, ...  % number of maximum iterations for DIRECT search
+    'DirectIters2', 5, ...
     ... % GP parameters. only used if GP is not provided. covarianve values
     'sigmaM0', 0.4, ... %[0.01; 0.01],... % lengthscale (std, not cov), how much inputs should be similar in that dim.
     ...               % i.e. how far inputs should influence each other
@@ -60,17 +62,17 @@ params = struct(...
     'Normalize', 0, ... %normalize y values: offse
     'OptimisticMean', 0, ... %lowest possible value (will shift y values)
     ... %TODO these are not normalized!
-    'Algorithm', 3, ...   % 1 ACES, 2, BOCPSEntropy, 3 Active-BOCPS, 4 BOCPS with direct+direct (set Ntrial_st=1) 5 BOCPS with that optimization method
+    'Algorithm', 2, ...   % 1 ACES, 2, BOCPSEntropy, 3 Active-BOCPS, 4 BOCPS with direct+direct (set Ntrial_st=1) 5 BOCPS with that optimization method
     'Sampling', 'Thompson3', ...  %can be Thompson, Nothing, Thompson2 Thompson3 None
     'kappa', 1.25, ... % kappa for BOCPS acquisition function
     ...
     'LearnHypers', false, ...
     'HyperPrior',@SEGammaHyperPosterior,... %for learning hyperparameters
-    'Niter', 11, ...
-    'InitialSamples', 9, ...  %minimum 1
-    'EvalModulo', 1, ...
+    'Niter', 100, ...
+    'InitialSamples', 80, ...  %minimum 1
+    'EvalModulo', 5, ...
     'EvalAllTheta', 0, ...
-    'ReturnOptimal', 1, ... %computes optimal values and put in return struct
+    'ReturnOptimal', 0, ... %computes optimal values and put in return struct
     'ConvergedFunc', @()(false), ... %this will be called at end of iteration
     'output_off', 0);
 
@@ -178,8 +180,8 @@ GP.inf = {@infPrior, @infExact, prior};
 GP = problem.MapGP(GP, [], params.LearnHypers);
 
 %% construct evaluation grid
-evalgrid = evalgridfun(params.xmin, params.xmax, params.Neval);
 if params.ReturnOptimal
+    evalgrid = evalgridfun(params.xmin, params.xmax, params.Neval);
     val_full = arrayfun(@(varargin)(problem.sim_eval_func([varargin{:}])), evalgrid{:}); % this is a D dim array
     out.val_opt = val_full;
     for i_th=s_dim+1:D
@@ -515,11 +517,11 @@ while ~converged && (numiter < params.Niter)
         
     % optimize 
     if params.Algorithm == 1 || params.Algorithm == 2 || params.Algorithm == 3 ||  params.Algorithm == 4
-        [minval1,xatmin1,hist] = Direct(struct('f', @(x)(aces_f(x'))), [params.xmin([ssei thi])' params.xmax([ssei thi])'], struct('showits', 1, 'maxevals', params.DirectEvals1));
-        if params.DirectEvals2
+        [minval1,xatmin1,hist] = Direct(struct('f', @(x)(aces_f(x'))), [params.xmin([ssei thi])' params.xmax([ssei thi])'], struct('showits', 1, 'maxits', params.DirectIters1, 'maxevals', params.DirectEvals1));
+        if params.DirectIters2
             xrange = [params.xmax([ssei thi])' - params.xmin([ssei thi])']/10;
             xrange = [max(xatmin1-xrange,params.xmin([ssei thi])') min(xatmin1+xrange,params.xmax([ssei thi])') ];
-            [minval2,xatmin2,hist] = Direct(struct('f', @(x)(aces_f(x'))), xrange, struct('showits', 1, 'maxevals', params.DirectEvals2));
+            [minval2,xatmin2,hist] = Direct(struct('f', @(x)(aces_f(x'))), xrange, struct('showits', 1, 'maxits', params.DirectIters2, 'maxevals', params.DirectEvals2));
         else
             minval2 = minval1;
             xatmin2 = xatmin1;
@@ -623,10 +625,12 @@ while ~converged && (numiter < params.Niter)
             pmin_values = reshape(pmin_values, size(xx));
         end
 
+        if exist('pmin_values')
             figure
             hold on
             mesh(xx, xy, exp(pmin_values));
             caxis([0, mean(mean(exp(pmin_values)))]);
+        end
         
 %         %plot over the representers used
 %         f1 = figure;
