@@ -18,5 +18,3 @@ Dw = w/size(w,1);
 %     sigma = sqrt(sum(Z_ext.*((Dtheta-repmat(mu,[size(Dtheta,1),1])).^2))/denom);
    
 p = Z/sum(Z);    
-
-    

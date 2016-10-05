@@ -9,9 +9,10 @@ params = struct(...
     'problem', ToyCannon1D0D2D, ...
     'Neval', [20, 20, 20], ... %evaluation points over contexts
     'Algorithm', 3, ...   % 1 FCREPS, 2 CREPS, 3 FCREPS with myreps
-    'Nart', 1, ...     %number of artificial st samples for FCREPS
+    'Nart', 2, ...     %number of artificial st samples for FCREPS
     'Niter', 1100, ...  %number of interactions with world. Episodes = Niter/Nsamples;
     'Nsamples', 10, ... %number of samples obtained from system at each episode
+    'Nold', 0, ... %use samples from Nold previous episodes
     'epsilon', 1, ... %epsilon for REPS (entropy bound, should be around 1)
 	'eta', 0.001, ...100, ... %eta for REPS
     'mu_init', [], ... %[theta_dim, 1]; default mean(problem.theta_bounds,2)
@@ -75,7 +76,7 @@ etatheta = [params.eta, 0.1*rand(1,2+size(problem.se_bounds,1)+size(problem.st_b
 % execute REPS
 if (params.Algorithm == 1 || params.Algorithm == 3)
     [a, A, cov, rew, eta, theta, hist] = fact_reps_state(a, sigs, ...
-           problem.st_bounds', stFunc, seFunc, rewFunc, simFunc, params.epsilon, params.Nsamples, params.Nart, episodes, etatheta, params.Algorithm == 3);
+           problem.st_bounds', stFunc, seFunc, rewFunc, simFunc, params.epsilon, params.Nsamples, params.Nart, params.Nold, episodes, etatheta, params.Algorithm == 3);
 else
     [a, A, cov, rew, eta, theta, hist] = reps_state(a, sigs, contextFunc, simFunc, params.epsilon, params.Nsamples, episodes, etatheta);
 end

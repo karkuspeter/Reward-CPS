@@ -1,15 +1,15 @@
 %hyper_params = struct('Algorithm', [1,2]);
 hyper_params = struct(...
     'problem', '{ToyCannon1D0D2D}', ...
-    'Algorithm', '{1, 3}', ... %);
+    'Algorithm', '{3}', ... %);
+    'Nart', '{1 10}', ...
     'epsilon', '{1}', ... %epsilon for REPS (entropy bound, should be around 1)
-    'Nsamples', '{50, 100}', ... %number of samples obtained from system at each episode
-    'Nart', '{1, 10}' ...
+    'Nsamples', '{20, 40}' ... %number of samples obtained from system at each episode
     );
 common_params = struct('output_off', 1, ...
-    'Niter', 1100, ...
+    'Niter', 500, ...
     'EvalModulo', 1);
-repeat_setting = 50;
+repeat_setting = 100;
 
 % create a list of all permutations     
 hp_list = [common_params]; % start with params for all executions
@@ -39,7 +39,7 @@ if (true)
     h_params = {};
     i_tuner_start = 1;
 else
-    i_tuner_start = 3;
+    i_tuner_start = i_tuner;
 end
 
 seed = rng();
@@ -89,9 +89,8 @@ save(strcat('results/hyper-', datestr(now,'dd-mm-yyyy-HH-MM'), '.mat'));
 
 % show specific result
 figure
-
 indices = 1:numel(hp_list); %[4 5 9 10];%1:numel(hp_list);
-%indices = 3:4;
+indices = [3 2];
 labels = {};
 plots = {};
 for ind = indices
@@ -117,3 +116,38 @@ h_eval_matrix = [1:length(hp_list); h_cumm_mean; h_cumm_std];
 best_params = h_params{maxind}
 
 no_params = 0;
+
+%% alternative evaluation when not all iterations are evaluated
+h_cumm_mean = [];
+h_cumm_std = [];
+for ind_p = 1:length(hp_list)
+    R_vec_rel = [];
+    for ind_rep = 1:repeat_setting
+        R_vec = h_linstats{ind_p}(ind_rep).R_mean;
+        eval_vec = h_linstats{ind_p}(ind_rep).evaluated;
+        R_vec_rel = [R_vec_rel; R_vec(eval_vec > 0)];
+    end
+    h_cumm_mean(ind_p) = mean(R_vec_rel);
+    h_cumm_std(ind_p) = std(R_vec_rel);
+end
+h_eval_matrix = [1:length(hp_list); h_cumm_mean; h_cumm_std];
+[maxval, maxind] = min(h_cumm_mean)
+best_params = h_params{maxind}
+[~, idsort] = sort(h_cumm_mean);
+h_eval_matrix_sorted = h_eval_matrix(:,idsort);
+
+
+% % analys plots
+% param_names = fieldnames(hyper_params);
+% param_names = {'Nart'}; % manual interest
+% for param_name = param_names(:)'
+%     values = hp_list.(param_name{:});
+%     for value = values
+%         % plot for cases where parameter == value
+%         h = figure;
+%         for ind = 1:size(hp_list, 1)
+%             if
+%         end
+%     end
+%     disp(param_name);
+% end

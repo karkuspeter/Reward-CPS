@@ -1,4 +1,4 @@
-function [a, A, cov, rew, eta, theta, hist] = fact_reps_state(a, sigs, stBounds, stFunc, seFunc, rewFunc, simFunc, epsilon, samples, artsamples, episodes, etatheta, usemyreps)
+function [a, A, cov, rew, eta, theta, hist] = fact_reps_state(a, sigs, stBounds, stFunc, seFunc, rewFunc, simFunc, epsilon, samples, artsamples, Nold, episodes, etatheta, usemyreps)
 % This script simulates the learning with contextual REPS
 %
 % Inputs:
@@ -46,9 +46,11 @@ for e = 1:episodes
     etaprev = eta;
     thetaprev = theta;
     prevcov = cov;
+    %sprobprev = sprob;
     
     outcomes = [];
     rnew = zeros(N*Nart, 1);
+    %sprobnew = zeros(N*Nart, 1);
     w = zeros(N*Nart, 1);
     seeds = {};
 
@@ -66,12 +68,17 @@ for e = 1:episodes
     end
     
     %for artificial samples
+    if usemyreps
+        artsig = (mean(sqrt(diag(cov))./sigs)+0.1) * (stBounds(2,:)-stBounds(1,:));
+    else
+        artsig = 0.1 * (stBounds(2,:)-stBounds(1,:));
+    end
     for i = 2:Nart
         for j=1:N
             idx = (i-1)*N + j;
             %C(idx, :) = [stFunc(1)', C(j, st_dim+1:end)];
             while true
-                st = C(j, 1:st_dim)+randn(1,st_dim)*(stBounds(2,:)-stBounds(1,:))/10;
+                st = normrnd(C(j, 1:st_dim), artsig);
                 if st>=stBounds(1,:) && st<=stBounds(2,:)
                     break
                 end
@@ -87,6 +94,20 @@ for e = 1:episodes
         end
     end
     
+%     %reuse old samples
+%     for i=1:Nprev*N*Nart
+%         if i>size(S,1) 
+%             break
+%         end
+%         idx = N*Nart+i;
+%         Snew(idx, :) = S(end-i+1, :);
+%         rnew(idx, :) = r(end-i+1, :);
+%         prob_sample = sprob(end-i+1, :);
+%             prob_sample = mvnpdf(Snew(j,:)', a + A*C(j, :)', cov);
+%             prob_current = mvnpdf(Snew(j,:)', a + A*C(idx, :)', cov);
+%             
+%         w(N*Nart+i) = sprob
+%     end
     % you can reuse old samples here
 % 	S = [S; Snew];
 % 	r = [r; rnew];
@@ -115,7 +136,16 @@ for e = 1:episodes
         Phi = [ones(N*Nart, 1), C, C.^2];
 
         % With Gradient
-        objfun = @(etatheta) fact_reps_dual_state(etatheta, epsilon, r(1:N*Nart,:), Phi(1:N*Nart,:), w(1:N*Nart,:));
+%         optw = w(1:N*Nart,:);
+%         if usemyreps
+%             optw = ones(N*Nart,1);
+%         end
+%         optw = optw * N*Nart / sum(optw);
+        %range = N;
+        %if usemyreps
+            range = N*Nart;
+        %end
+        objfun = @(etatheta) fact_reps_dual_state(etatheta, epsilon, r(1:range,:), Phi(1:range,:), ones(range,1));
 
         try % There might be some numerical problems
             etatheta_prev = etatheta;
@@ -128,17 +158,16 @@ for e = 1:episodes
         catch err
             disp(err.identifier);
             disp(err.message);
+            etatheta = etatheta_prev;
         end
 
         eta = etatheta(1);
         theta = etatheta(2:end);
 
         V = Phi*theta;
-        if usemyreps
-            p = exp((r - V - max(r-V))/eta).*w;
-        else
-            p = exp((r - V)/eta).*w;
-        end
+        p = exp((r - V - max(r-V))/eta).*w;
+        % original:
+        % p = exp((r - V)/eta).*w;
         p = p/sum(p);
         
 %         if usemyreps && any(isnan(p))
@@ -171,9 +200,8 @@ for e = 1:episodes
     dummy = S(1:N,:) - bsxfun(@plus, a , A*C(1:N,:)')';
     cov = bsxfun(@times, p(1:N,:), dummy)'*dummy / sum(p(1:N,:));
 
-    
-    if any(isnan(a))
-
+    [~, temp] = chol(cov);
+    if any(isnan(a)) || temp > 0
         a = aprev;
         A = Aprev;
         eta = etaprev;
