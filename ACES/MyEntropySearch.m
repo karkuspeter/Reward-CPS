@@ -39,6 +39,7 @@ fprintf 'starting entropy search.\n'
 
 params = struct(...
     'problem', ToyCannon1D0D8D, ...
+    'RandomiseProblem', false, ...
     'GP', struct, ... %user may override this with initial samples, etc
     ...
     'S', 1000, ... %how many samples to take from GP posterior to estimate pmin
@@ -98,6 +99,9 @@ end
 %% setup entropy search specific parameters that depend on the problem
 problem = params.problem;
 params.problem = struct; %clear so dont have to pass in to parfor later
+if params.RandomiseProblem
+    problem.Randomise();
+end
 
 params.xmin = [problem.st_bounds(:,1)' problem.se_bounds(:,1)' problem.theta_bounds(:,1)'];
 params.xmax = [problem.st_bounds(:,2)' problem.se_bounds(:,2)' problem.theta_bounds(:,2)'];

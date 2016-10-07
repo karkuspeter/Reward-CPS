@@ -113,6 +113,28 @@ classdef ToyCannonBase < ProblemInterface
                 GPnew.cK             = robustchol(GPnew.K);
             end
         end
+        
+        function obj = SetHill(obj, hill)
+            obj.toycannon.hill = hill;
+            obj.toycannon.y = obj.toycannon.HillValue(obj.toycannon.x);
+        end
+        
+        function hill = GetRandomHill(obj, hill_count)
+            %s_bounds = obj.toycannon.s_bounds;
+            if nargin < 2
+                hill_count = obj.toycannon.hill_count;
+            end
+            % h * exp(-(x-c).^2/scale)
+            c = samplerange(2, 10, hill_count)'; % pos of hill
+            h = samplerange(0.1, 0.5, hill_count)'; % height
+            scale = samplerange(0.05, 2, hill_count)'; % width, variance of gaussian
+            hill = struct('c', c, 'h', h, 'scale', scale);    
+        end
+        
+        function obj = Randomise(obj, varargin)
+            obj.SetHill(obj.GetRandomHill(varargin{:}));
+        end
+        
     end
     
 end

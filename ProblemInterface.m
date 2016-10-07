@@ -14,6 +14,7 @@ classdef ProblemInterface
         [r, result] = sim_eval_func(obj, context, theta); % no noise version of sim_func
         [theta_vec, r_vec] = optimal_values(obj, datapoints, contextpoints);
         PlotEnv(obj);
+        obj = Randomise(obj, varargin);
     end
     
 end

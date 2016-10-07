@@ -5,6 +5,7 @@ if ~exist('no_params') || no_params == 0
     show_func = @ShowRepeatResults;
     reward_name = 'R_mean';
     run_struct = struct('output_off',1);
+    fixed_seeds = {};
     NeedNewFigure = true;
 end
 
@@ -20,6 +21,9 @@ reps = size(stat_vec,1)+1:size(stat_vec,1)+repeats;
 parfor i=reps
     fprintf('%d / %d\n', i, repeats);
     % random seed is supposed to be different in each worker, just save it for reproducability
+    if ~isempty(fixed_seeds)
+        rng(fixed_seeds{i})
+    end
     seed_vec{i} = rng();
     
     [stat, linstat, params] = spider_func(run_struct);
