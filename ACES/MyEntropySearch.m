@@ -35,8 +35,6 @@ function [ stats, linstat, params ] = MyEntropySearch(input_params)
 %in.MaxEval      = H;    % Horizon (number of evaluations allowed)
 %in.f            = @(x) f(x) % handle to objective function
 
-fprintf 'starting entropy search.\n'
-
 params = struct(...
     'problem', ToyCannon1D0D8D, ...
     'RandomiseProblem', false, ...
@@ -210,6 +208,9 @@ linstat = struct('R_mean', zeros(params.InitialSamples,1), ...
                  'GP', repmat(GP, params.InitialSamples, 1));
 
 %% iterations
+if ~params.output_off
+    fprintf 'starting entropy search.\n'
+end
 converged = false;
 numiter   = params.InitialSamples;
 %MeanEsts  = zeros(0,D);
@@ -217,9 +218,10 @@ numiter   = params.InitialSamples;
 %BestGuesses= zeros(0,D);
 while ~converged && (numiter < params.Niter)
     numiter = numiter + 1;
-    fprintf('\n');
-    disp(['iteration number ' num2str(numiter)])
-
+    if ~params.output_off
+        fprintf('\n');
+        disp(['iteration number ' num2str(numiter)])
+    end
         
     %% Build context representers
     st_trials = samplerange(params.xmin(sti), params.xmax(sti), params.Ntrial_st);
@@ -521,11 +523,11 @@ while ~converged && (numiter < params.Niter)
         
     % optimize 
     if params.Algorithm == 1 || params.Algorithm == 2 || params.Algorithm == 3 ||  params.Algorithm == 4
-        [minval1,xatmin1,hist] = Direct(struct('f', @(x)(aces_f(x'))), [params.xmin([ssei thi])' params.xmax([ssei thi])'], struct('showits', 1, 'maxits', params.DirectIters1, 'maxevals', params.DirectEvals1));
+        [minval1,xatmin1,hist] = Direct(struct('f', @(x)(aces_f(x'))), [params.xmin([ssei thi])' params.xmax([ssei thi])'], struct('showits', (params.output_off == 0), 'maxits', params.DirectIters1, 'maxevals', params.DirectEvals1));
         if params.DirectIters2
             xrange = [params.xmax([ssei thi])' - params.xmin([ssei thi])']/10;
             xrange = [max(xatmin1-xrange,params.xmin([ssei thi])') min(xatmin1+xrange,params.xmax([ssei thi])') ];
-            [minval2,xatmin2,hist] = Direct(struct('f', @(x)(aces_f(x'))), xrange, struct('showits', 1, 'maxits', params.DirectIters2, 'maxevals', params.DirectEvals2));
+            [minval2,xatmin2,hist] = Direct(struct('f', @(x)(aces_f(x'))), xrange, struct('showits', (params.output_off == 0), 'maxits', params.DirectIters2, 'maxevals', params.DirectEvals2));
         else
             minval2 = minval1;
             xatmin2 = xatmin1;
@@ -541,7 +543,9 @@ while ~converged && (numiter < params.Niter)
     % add random context if algorithm 2, 4, or 5
     xatmin1 = [context(sinvsei); xatmin1];
     xatmin2 = [context(sinvsei); xatmin2];
-    xatmin2
+    if ~params.output_off
+        xatmin2
+    end
     
     GP_full_x = repmat(plot_x, size(GP.x,1), 1);
     GP_full_x(:,[sei thi]) = GP.x;
@@ -680,7 +684,9 @@ while ~converged && (numiter < params.Niter)
     end
         
     %% eval function
-    fprintf('evaluating function \n')
+    if ~params.output_off
+        fprintf('evaluating function \n')
+    end
     xp                = xatmin2';
     [yp,obsp]         = problem.sim_func([plot_x(sti) xp]);
     
@@ -711,11 +717,13 @@ while ~converged && (numiter < params.Niter)
 %         GP.hyp = minimize(GP.hyp_initial,@(x)params.HyperPrior(x,GP.x,GP.y),minimizeopts);
 %         GP.K   = k_matrix(GP,GP.x) + diag(GP_noise_var(GP,GP.y));
 %         GP.cK  = chol(GP.K);
+        if ~params.output_off
+
          fprintf 'hyperparameters optimized.'
          display(['length scales: ', num2str(exp(GP.hyp.cov(1:end-1)'))]);
          display([' signal stdev: ', num2str(exp(GP.hyp.cov(end)))]);
          display([' noise stddev: ', num2str(exp(GP.hyp.lik))]);
-         
+        end     
      end
     
     %% evaluate over contexts
@@ -725,7 +733,9 @@ while ~converged && (numiter < params.Niter)
     pred_vec = zeros(size(theta_vec,1),1);
     
     if ~mod(numiter, params.EvalModulo)
-        fprintf('evaluate over contexts\n')
+        if ~params.output_off
+            fprintf('evaluate over contexts\n')
+        end
         eval_st_vect = evalvectfun(params.xmin(sti), params.xmax(sti), params.Neval(sti));
         eval_se_vect = evalvectfun(params.xmin(sei), params.xmax(sei), params.Neval(sei));
         %s_cell = evalgridfun(xmin([sti sei]), xmax([sti sei]), params.Neval([sti sei]));
@@ -744,9 +754,10 @@ while ~converged && (numiter < params.Niter)
         end
         val_vec = problem.sim_eval_func([s_vec theta_vec]);
         
-        current_performance = mean(val_vec)
         linstat.evaluated(numiter,:) = 1;
-        %out.val_vec(:,numiter) = val_vec;
+        if ~params.output_off
+            current_performance = mean(val_vec)
+        end
     else
         linstat.evaluated(numiter,:) = 0;
     end
