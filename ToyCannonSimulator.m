@@ -1,4 +1,4 @@
-classdef ToyCannonSimulator
+classdef ToyCannonSimulator < handle
     % Class for toy cannon problem
     %   2D cannon with random hills
     
@@ -7,6 +7,8 @@ classdef ToyCannonSimulator
     properties
         angleNoise
         s_bounds
+        hill_count
+        representers
         hill
         x  %positions on ground, cached
         y  %hill values for each x
@@ -20,15 +22,17 @@ classdef ToyCannonSimulator
          
          obj.angleNoise = 1/180*pi;
          obj.s_bounds = [0, 12];
+         obj.hill_count = 4;
          obj.hill = struct('c', [3 5 6 7], ...
                            'h', [.3 .3 .4 .2], ...
                            'scale', [.5 .5 .1 2]);
-         
+         obj.representers = 1001;
+                       
          % function describing hills, not used for now
          single_hill_func = @(x, h, c, scale)(h * exp(-(x-c).^2/scale));
          obj.hill_func = @(x)(sum(single_hill_func(x, obj.hill.h, obj.hill.c, obj.hill.scale)));
 
-         obj.x = obj.s_bounds(1):0.1:obj.s_bounds(2)*2;
+         obj.x = linspace(obj.s_bounds(1),obj.s_bounds(2)*2, obj.representers);
          obj.y = obj.HillValue(obj.x);
          %obj.r_func = @(a,v,s,hillats,xres,yres)(4-sqrt( (xres-s).^2 + (yres - hillats)^2));
          obj.r_func = @(a,v,s,hillats,xres,yres)(4-sqrt( (xres-s).^2 )  - 1.*v.^2); %- 0.1*a.^2
@@ -68,21 +72,18 @@ classdef ToyCannonSimulator
 
               th = angle(i,:) + randn(1)*noise;
 
-              yproj = obj.x.*tan(th) - 9.81/100 * obj.x.^2/2/(v(i,:)*cos(th))^2; %y of ball trajectory
+              yproj = obj.y(1) + obj.x.*tan(th) - 9.81/100 * obj.x.^2/2/(v(i,:)*cos(th))^2; %y of ball trajectory
               %f_yproj = @(x)(x.*tan(th) - 9.81/100 * x.^2/2/(v*cos(th))^2); %y of ball trajectory
 
               % find intersection with a general search, too slow
               %[ixLand, yres] = intersections(obj.x, obj.y, obj.x, yproj);
 
-              ixLand = find(bsxfun(@lt, yproj, obj.y));  % find all x where yproj < y
-              if(length(ixLand) < 2)
+              ixLand = find(bsxfun(@lt, yproj(2:end), obj.y(2:end)),1);  % find all x where yproj < y
+              if(length(ixLand) < 1)
                   xres = obj.x(end);
                   yres = obj.y(end);
               else
-                  %xres = ixLand(2);
-                  %yres = yres(2);
-                  ixLand = ixLand(2); % ixLand(1) is the initial pos, ixLand(2) is where it hits the hill
-                  xres = obj.x(ixLand);
+                   xres = obj.x(ixLand);
                   yres = obj.y(ixLand);
               end
 
