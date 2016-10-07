@@ -3,22 +3,25 @@ init
 catch ME
     disp(ME.identifier);
 end
-
-%hyper_params = struct('Algorithm', [1,2]);
 hyper_params = struct(...
-    'problem', '{ToyCannon1D0D8D}', ...
-    'kappa', '{5}', ...
+    'problem', '{ToyCannon0D1D2D, ToyCannon1D0D2D}', ...
+    'kappa', '{0.5 1 1.5 2 3 5}', ...
     ...%'LearnHypers', '{true}', ...
-    'Ntrial_st', '{100}', ...  %representers for st space, can be number or vector
-    'Algorithm', '{1, 2, 4}' ... %);
+    'Ntrial_st', '{1}', ...  %representers for st space, can be number or vector
+    'Algorithm', '{4}' ... %);
     );
 common_params = struct('output_off', 1, ...
-    'Niter', 100, ...
-    'InitialSamples', 14, ...
+    'Niter', 40, ...
+    'RandomiseProblem', true, ...
+    'InitialSamples', 4, ...
     'Neval', [50 20 20 20 20 20 20 20 20 20 20 20 20], ...
+    ...%'sigmaM0', 1.45^2, ...
+    ...%'sigmaF0', 0.2,...  % how much inputs are correlated -
+    ...%'sigma0', sqrt(0.003), ... %how noisy my observations are, ...
     'OptimisticMean', -1, ... %lowest possible value (will shift y values)
     'EvalModulo', 5);
-repeat_setting = 8;
+repeat_setting = 50;
+fix_seeds = true;
 
 % create a list of all permutations     
 hp_list = [common_params]; % start with params for all executions
@@ -43,11 +46,20 @@ if (true)
     h_linstats = {};
     h_params = {};
     i_tuner_start = 1;
+    % create seed list
+    if fix_seeds
+        fixed_seeds = cell(repeat_setting,1);
+        for ind = 1:repeat_setting
+            rng('shuffle');
+            fixed_seeds{ind} = rng();
+        end
+    else
+        fixed_seeds = {};
+    end
 else
     i_tuner_start = 3;
 end
 
-seed = rng();
 for i_tuner = i_tuner_start:numel(hp_list)  %dont use i, its being overwritten inside
     list_el = hp_list(i_tuner);
     rng(seed);
