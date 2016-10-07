@@ -62,7 +62,6 @@ end
 
 for i_tuner = i_tuner_start:numel(hp_list)  %dont use i, its being overwritten inside
     list_el = hp_list(i_tuner);
-    rng(seed);
     
     repeats = repeat_setting;
     keep_prev = 0;
