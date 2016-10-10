@@ -1,22 +1,22 @@
 %hyper_params = struct('Algorithm', [1,2]);
 hyper_params = struct(...
-    'problem', '{ToyCannon0D1D8D, ToyCannon1D0D8D}', ...
+    'problem', '{ToyCannon0D1D2D, ToyCannon1D0D2D}', ...
     'kappa', '{2}', ...
     ...%'LearnHypers', '{true}', ...
-    'Ntrial_st', '{50}', ...  %representers for st space, can be number or vector
-    'Algorithm', '{1}' ... %);
+    'Ntrial_st', '{1}', ...  %representers for st space, can be number or vector
+    'Algorithm', '{4}' ... %);
     );
 common_params = struct('output_off', 1, ...
     'Niter', 100, ...
-    'RandomiseProblem', false, ...
-    'InitialSamples', 19, ...
-    'Neval', [20 20 20 20 20 20 20 20 20 20 20 20 20], ...
+    'RandomiseProblem', true, ...
+    'InitialSamples', 4, ...
+    'Neval', [50 20 20 20 20 20 20 20 20 20 20 20 20], ...
     ...%'sigmaM0', 1.45^2, ...
     ...%'sigmaF0', 0.2,...  % how much inputs are correlated -
     ...%'sigma0', sqrt(0.003), ... %how noisy my observations are, ...
     'OptimisticMean', -1, ... %lowest possible value (will shift y values)
-    'EvalModulo', 10);
-repeat_setting = 8;
+    'EvalModulo', 5);
+repeat_setting = 100;
 fix_seeds = true;
 
 % create a list of all permutations     
@@ -132,3 +132,22 @@ h_eval_matrix = [1:length(hp_list); h_cumm_mean; h_cumm_std];
 best_params = h_params{maxind}
 
 no_params = 0;
+
+%% alternative evaluation when not all iterations are evaluated
+h_cumm_mean = [];
+h_cumm_std = [];
+for ind_p = 1:length(hp_list)
+    R_vec_rel = [];
+    for ind_rep = 1:repeat_setting
+        R_vec = h_linstats{ind_p}(ind_rep).R_mean;
+        eval_vec = h_linstats{ind_p}(ind_rep).evaluated;
+        R_vec_rel = [R_vec_rel; R_vec(eval_vec > 0)];
+    end
+    h_cumm_mean(ind_p) = mean(R_vec_rel);
+    h_cumm_std(ind_p) = std(R_vec_rel);
+end
+h_eval_matrix = [1:length(hp_list); h_cumm_mean; h_cumm_std];
+[maxval, maxind] = min(h_cumm_mean)
+best_params = h_params{maxind}
+[~, idsort] = sort(h_cumm_mean);
+h_eval_matrix_sorted = h_eval_matrix(:,idsort);
