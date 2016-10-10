@@ -47,7 +47,7 @@ params = struct(...
     'Nn', 8, ...  % only the neares Nn out of Ntrial_se will be evaluated for a context se
     'Nb', 20, ... %number of representers for p_min over theta space generated with Thompson sampling
     'Nbpool', 500, ... %randomply chosen theta value pool for Thompson sampling
-    'Neval', [50, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20,20,20], ... %evaluation points over contexts
+    'Neval', [50, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20], ... %evaluation points over contexts. Theta space will be used computing optimal values
     'DirectEvals1', 100, ...  % number of maximum function evaluations for DIRECT search
     'DirectEvals2', 100, ...
     'DirectIters1', 5, ...  % number of maximum iterations for DIRECT search
@@ -181,16 +181,6 @@ GP.inf = {@infPrior, @infExact, prior};
 % optimize hyper parameters if needed
 GP = problem.MapGP(GP, [], params.LearnHypers);
 
-%% construct evaluation grid
-if params.ReturnOptimal
-    evalgrid = evalgridfun(params.xmin, params.xmax, params.Neval);
-    val_full = arrayfun(@(varargin)(problem.sim_eval_func([varargin{:}])), evalgrid{:}); % this is a D dim array
-    out.val_opt = val_full;
-    for i_th=s_dim+1:D
-        out.val_opt = min(out.val_opt, [], i_th);
-    end
-end
-
 if params.output_off
     PlotModulo = struct('ACES', 0, 'pmin', 0, 'policy', 0);
 end
@@ -198,7 +188,7 @@ if strcmp(params.Sampling, 'Nothing')
     params.Nb = params.Nbpool;
 end
 
-stats = struct('last_R_mean', 0);
+stats = struct('last_R_mean', 0, 'R_opt', 0);
 linstat = struct('R_mean', zeros(params.InitialSamples,1), ...
                  'st', zeros(size(GP.x,1),1), 'se', GP.x(:,sei-st_dim), 'theta', GP.x(:,thi-st_dim), ...
                  'theta_s', zeros(params.InitialSamples, prod(params.Neval([sti sei]))*th_dim), ...
@@ -915,6 +905,15 @@ linstat.outcome = GP.obs;
 
 stats.last_R_mean = linstat.R_mean(end);
 stats.lastGP = GP;
+
+if params.ReturnOptimal
+    r_opt = problem.optimal_values(params.Neval);
+    while ndim(r_opt > 1)
+        r_opt = mean(r_opt);
+    end
+    stats.R_opt = r_opt;
+end
+
 %out.MeanEsts = MeanEsts;
 %out.MAPEsts  = MAPEsts;
 %out.logP     = logP;
@@ -926,15 +925,4 @@ end
 
 end
 
-function evalgrid = evalgridfun(xmin, xmax, Neval)
-if isempty(xmin)
-    evalgrid = cell(1,0);
-    return
-end
-evalgrid = cell(1, length(xmin));
-gridvect = cell(1, length(xmin));
-for iiii=1:length(xmin)
-    gridvect{iiii} = linspace(xmin(iiii), xmax(iiii), Neval(iiii))';
-end
-[evalgrid{:}] = ndgrid(gridvect{:});
-end
+
