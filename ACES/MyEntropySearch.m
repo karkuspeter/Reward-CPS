@@ -910,6 +910,8 @@ if params.ReturnOptimal
         r_opt = mean(r_opt);
     end
     stats.R_opt = r_opt;
+    linstat.R_mean = linstat.R_mean/r_opt;
+    
 end
 
 if ~params.output_off
