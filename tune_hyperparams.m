@@ -1,12 +1,21 @@
 %hyper_params = struct('Algorithm', [1,2]);
+isdirect = true;
+setting = struct('problem', ToyCannon0D1D2D, 'kappa', 0.5);  
+direct_settings = setting;
+setting = struct('problem', ToyCannon1D0D2D, 'kappa', 2);  
+direct_settings = [direct_settings; setting];
+
 hyper_params = struct(...
     'problem', '{ToyCannon0D1D2D, ToyCannon1D0D2D}', ...
-    'kappa', '{2}', ...
+    'kappa', '{0.5, 2}', ...
     ...%'LearnHypers', '{true}', ...
     'Ntrial_st', '{1}', ...  %representers for st space, can be number or vector
     'Algorithm', '{4}' ... %);
     );
+
 common_params = struct('output_off', 1, ...
+    'Ntrial_st', 1, ...  %representers for st space, can be number or vector
+    'Algorithm', 4, ... %);
     'Niter', 100, ...
     'RandomiseProblem', true, ...
     'InitialSamples', 4, ...
@@ -21,21 +30,26 @@ fix_seeds = true;
 
 % create a list of all permutations     
 hp_list = [common_params]; % start with params for all executions
-param_names = fieldnames(hyper_params);
-for param_name = param_names(:)'
-    hp_list2 = [];
-    for i_tuner = 1:numel(hp_list)
-        list_el = hp_list(i_tuner);
-        param_values = eval(hyper_params.(param_name{:}));
-        for j = 1:length(param_values)
-            param_val = param_values(j);
-            list_el.(param_name{:}) = param_val{:};
-            hp_list2 = [hp_list2; list_el];
+if isdirect
+    hp_list = repmat(hp_list, size(direct_settings, 1), 1);
+    param_names = [fieldnames(hp_list); fieldnames(direct_settings)];
+	hp_list = cell2struct([struct2cell(hp_list); struct2cell(direct_settings)], param_names, 1);
+else
+    param_names = fieldnames(hyper_params);
+    for param_name = param_names(:)'
+        hp_list2 = [];
+        for i_tuner = 1:numel(hp_list)
+            list_el = hp_list(i_tuner);
+            param_values = eval(hyper_params.(param_name{:}));
+            for j = 1:length(param_values)
+                param_val = param_values(j);
+                list_el.(param_name{:}) = param_val{:};
+                hp_list2 = [hp_list2; list_el];
+            end
         end
+        hp_list = hp_list2;
     end
-    hp_list = hp_list2;
 end
-
 %new figure for plotting during repeat
 figure
 hold on
