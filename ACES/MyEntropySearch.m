@@ -752,10 +752,10 @@ while ~converged && (numiter < params.Niter)
         linstat.evaluated(numiter,:) = 0;
     end
     
-    linstat.theta_s(numiter, :) = theta_vec(:)';
+    %linstat.theta_s(numiter, :) = theta_vec(:)';
     linstat.R_s(numiter, :) = val_vec(:)';
     linstat.R_mean(numiter, :) = mean(val_vec);
-    linstat.GP(numiter,:) = GP;
+    linstat.GP(numiter,:) = GP.hyp;
     
     %% plot current theta policy
     % plot on real values
@@ -872,8 +872,6 @@ while ~converged && (numiter < params.Niter)
         %scatter(theta_vec(i,end), pred_vec(i,end), 'y*');
     end
     
-    out.GPs{numiter} = GP.hyp;
-    
     converged = params.ConvergedFunc();
     %     catch error
     %         if numiter > 1
@@ -913,10 +911,6 @@ if params.ReturnOptimal
     end
     stats.R_opt = r_opt;
 end
-
-%out.MeanEsts = MeanEsts;
-%out.MAPEsts  = MAPEsts;
-%out.logP     = logP;
 
 if ~params.output_off
     figure
