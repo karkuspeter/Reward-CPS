@@ -872,7 +872,7 @@ while ~converged && (numiter < params.Niter)
         %scatter(theta_vec(i,end), pred_vec(i,end), 'y*');
     end
     
-    out.GPs{numiter} = GP;
+    out.GPs{numiter} = GP.hyp;
     
     converged = params.ConvergedFunc();
     %     catch error
