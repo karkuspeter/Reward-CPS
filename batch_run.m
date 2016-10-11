@@ -3,6 +3,25 @@ init
 catch ME
     disp(ME.identifier);
 end
+
+isdirect = true;
+setting = struct('problem', ToyCannon0D1D2D, 'kappa', 0.5, 'Rcoeff', [1 1 1 0.5 1 1]);  
+direct_settings = setting;
+setting = struct('problem', ToyCannon0D1D2D, 'kappa', 0.5, 'Rcoeff', [1 1 1 1 1 1]);  
+direct_settings = [direct_settings; setting];
+setting = struct('problem', ToyCannon0D1D2D, 'kappa', 0.5, 'Rcoeff', [1 3 1 1 1 1]);  
+direct_settings = [direct_settings; setting];
+setting = struct('problem', ToyCannon0D1D2D, 'kappa', 0.5, 'Rcoeff', [1 1 3 1 1 1]);  
+direct_settings = [direct_settings; setting];
+setting = struct('problem', ToyCannon1D0D2D, 'kappa', 1, 'Rcoeff', [1 1 1 0.5 1 1]);  
+direct_settings = [direct_settings; setting];
+setting = struct('problem', ToyCannon1D0D2D, 'kappa', 1, 'Rcoeff', [1 1 1 1 1 1]);  
+direct_settings = [direct_settings; setting];
+setting = struct('problem', ToyCannon1D0D2D, 'kappa', 1, 'Rcoeff', [1 3 1 1 1 1]);  
+direct_settings = [direct_settings; setting];
+setting = struct('problem', ToyCannon1D0D2D, 'kappa', 1, 'Rcoeff', [1 1 3 1 1 1]);  
+direct_settings = [direct_settings; setting];
+
 hyper_params = struct(...
     'problem', '{ToyCannon1D0D2D}', ...
     'Ny', '{10, 20}', ... %how many samples to predict pmin given a new x
@@ -24,21 +43,27 @@ common_params = struct('output_off', 1, ...
 repeat_setting = 20;
 fix_seeds = true;
 
-% create a list of all permutations     
+% create a list of all permutations    
 hp_list = [common_params]; % start with params for all executions
-param_names = fieldnames(hyper_params);
-for param_name = param_names(:)'
-    hp_list2 = [];
-    for i_tuner = 1:numel(hp_list)
-        list_el = hp_list(i_tuner);
-        param_values = eval(hyper_params.(param_name{:}));
-        for j = 1:length(param_values)
-            param_val = param_values(j);
-            list_el.(param_name{:}) = param_val{:};
-            hp_list2 = [hp_list2; list_el];
+if isdirect
+    hp_list = repmat(hp_list, size(direct_settings, 1), 1);
+    param_names = [fieldnames(hp_list); fieldnames(direct_settings)];
+	hp_list = cell2struct([struct2cell(hp_list); struct2cell(direct_settings)], param_names, 1);
+else
+    param_names = fieldnames(hyper_params);
+    for param_name = param_names(:)'
+        hp_list2 = [];
+        for i_tuner = 1:numel(hp_list)
+            list_el = hp_list(i_tuner);
+            param_values = eval(hyper_params.(param_name{:}));
+            for j = 1:length(param_values)
+                param_val = param_values(j);
+                list_el.(param_name{:}) = param_val{:};
+                hp_list2 = [hp_list2; list_el];
+            end
         end
+        hp_list = hp_list2;
     end
-    hp_list = hp_list2;
 end
 
 % execute each
