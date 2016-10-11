@@ -136,8 +136,17 @@ classdef ToyCannonBase < ProblemInterface
         end
         
         function obj = SetRcoeff(obj, rcoeff)
-            obj.toycannon.r_func = @(a,v,s,hillats,xres,yres)...
+            if length(rcoeff) == 3
+                obj.toycannon.r_func = @(a,v,s,hillats,xres,yres)...
                 (4 - rcoeff(1)*(xres-s).^2 - rcoeff(2).*v.^2 - rcoeff(3)*a.^2);
+            elseif length(rcoeff) == 6
+                obj.toycannon.r_func = @(a,v,s,hillats,xres,yres)...
+                (4 - rcoeff(1)*((xres-s).^2).^rcoeff(4)...
+                - rcoeff(2).*(v.^2).^rcoeff(5) ...
+                - rcoeff(3)*(a.^2).^rcoeff(6));
+            else
+                disp('Error: not supported coefficient vector\n')
+            end
         end
         
     end

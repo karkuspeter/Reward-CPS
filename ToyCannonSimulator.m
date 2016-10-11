@@ -35,7 +35,8 @@ classdef ToyCannonSimulator < handle
          obj.x = linspace(obj.s_bounds(1),obj.s_bounds(2)*2, obj.representers);
          obj.y = obj.HillValue(obj.x);
          %obj.r_func = @(a,v,s,hillats,xres,yres)(4-sqrt( (xres-s).^2 + (yres - hillats)^2));
-         obj.r_func = @(a,v,s,hillats,xres,yres)(4-sqrt( (xres-s).^2 )  - 1.*v.^2); %- 0.1*a.^2
+         %obj.r_func = @(a,v,s,hillats,xres,yres)(4-sqrt( (xres-s).^2 )  - 1.*v.^2); %- 0.1*a.^2
+         obj.r_func = @(a,v,s,hillats,xres,yres)(4-sqrt( (xres-s).^2 )  - 1.*v.^2 - 0*a.^2); %- 0.1*a.^2
         
          % reward: eucladian distance from target on the hill,
          % +4 to address 0 mean
