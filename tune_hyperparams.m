@@ -1,9 +1,9 @@
 %hyper_params = struct('Algorithm', [1,2]);
 isdirect = true;
-setting = struct('problem', ToyCannon0D1D2D, 'kappa', 0.5);  
+setting = struct('problem', ToyCannon0D1D2D, 'kappa', 0.5, 'Rcoeff', [1 1 1 0.5 1 1]);  
 direct_settings = setting;
-setting = struct('problem', ToyCannon1D0D2D, 'kappa', 2);  
-direct_settings = [direct_settings; setting];
+%setting = struct('problem', ToyCannon1D0D2D, 'kappa', 2);  
+%direct_settings = [direct_settings; setting];
 
 hyper_params = struct(...
     'problem', '{ToyCannon0D1D2D, ToyCannon1D0D2D}', ...
@@ -134,6 +134,28 @@ for ind = indices
     plots = [plots, {h}];
 end
 legend([plots{:}], labels);
+
+%% evaluate successes
+tresh = 0.9;
+conv_vec = zeros(4,numel(hp_list));  % index, mean iteration to reach tresh, std iteration, fail count
+for ind = 1:numel(hp_list)
+    linstat_vec = h_linstats{ind};
+    temp_vec = [];
+    for ind_rep=1:repeat_setting
+        
+        temp = find(linstat_vec(ind_rep).R_mean > tresh, 1);
+        if isempty(temp)
+            % failed, never reach treshold reward
+            conv_vec(4, ind) = conv_vec(4, ind) + 1;
+        else
+            temp_vec = [temp_vec; temp];
+        end
+    end
+    conv_vec(1, ind) = ind;
+    conv_vec(2, ind) = mean(temp_vec);
+    conv_vec(3, ind) = std(temp_vec);
+end
+conv_vec
 
 %%
 h_cumm_mean = [];
