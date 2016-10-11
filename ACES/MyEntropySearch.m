@@ -36,7 +36,7 @@ function [ stats, linstat, params ] = MyEntropySearch(input_params)
 %in.f            = @(x) f(x) % handle to objective function
 
 params = struct(...
-    'problem', ToyCannon1D0D8D, ...
+    'problem', ToyCannon1D0D2D, ...
     'RandomiseProblem', false, ...
     'GP', struct, ... %user may override this with initial samples, etc
     ...
@@ -61,17 +61,17 @@ params = struct(...
     'Normalize', 0, ... %normalize y values: offse
     'OptimisticMean', 0, ... %lowest possible value (will shift y values)
     ... %TODO these are not normalized!
-    'Algorithm', 2, ...   % 1 ACES, 2, BOCPSEntropy, 3 Active-BOCPS, 4 BOCPS with direct+direct (set Ntrial_st=1) 5 BOCPS with that optimization method
+    'Algorithm', 4, ...   % 1 ACES, 2, BOCPSEntropy, 3 Active-BOCPS, 4 BOCPS with direct+direct (set Ntrial_st=1) 5 BOCPS with that optimization method
     'Sampling', 'Thompson3', ...  %can be Thompson, Nothing, Thompson2 Thompson3 None
     'kappa', 1.25, ... % kappa for BOCPS acquisition function
     ...
     'LearnHypers', false, ...
     'HyperPrior',@SEGammaHyperPosterior,... %for learning hyperparameters
-    'Niter', 100, ...
+    'Niter', 82, ...
     'InitialSamples', 80, ...  %minimum 1
     'EvalModulo', 5, ...
     'EvalAllTheta', 0, ...
-    'ReturnOptimal', 0, ... %computes optimal values and put in return struct
+    'ReturnOptimal', 1, ... %computes optimal values and put in return struct
     'ConvergedFunc', @()(false), ... %this will be called at end of iteration
     'output_off', 0);
 
@@ -104,6 +104,7 @@ end
 params.xmin = [problem.st_bounds(:,1)' problem.se_bounds(:,1)' problem.theta_bounds(:,1)'];
 params.xmax = [problem.st_bounds(:,2)' problem.se_bounds(:,2)' problem.theta_bounds(:,2)'];
 params.D = size(params.xmax,2); % dimensionality of inputs (search domain)
+params.Neval = params.Neval(1:params.D);
 
 plot_x = (params.xmax + params.xmin)/2; %this will be used when not plotting specific dimension
 
@@ -195,7 +196,7 @@ linstat = struct('R_mean', zeros(params.InitialSamples,1), ...
                  'R_s', zeros(params.InitialSamples, prod(params.Neval([sti sei]))), ...
                  'R_opt', [], ...
                  'outcome', GP.obs(:,:), 'evaluated', zeros(params.InitialSamples,1), ...
-                 'GP', repmat(GP, params.InitialSamples, 1));
+                 'GP', repmat(GP.hyp, params.InitialSamples, 1));
 
 %% iterations
 if ~params.output_off
@@ -905,8 +906,8 @@ stats.last_R_mean = linstat.R_mean(end);
 stats.lastGP = GP;
 
 if params.ReturnOptimal
-    r_opt = problem.optimal_values(params.Neval);
-    while ndim(r_opt > 1)
+    r_opt = problem.get_optimal_r(params.Neval);
+    while max(size(r_opt)) > 1
         r_opt = mean(r_opt);
     end
     stats.R_opt = r_opt;
