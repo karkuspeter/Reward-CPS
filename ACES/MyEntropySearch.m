@@ -37,6 +37,7 @@ function [ stats, linstat, params ] = MyEntropySearch(input_params)
 
 params = struct(...
     'problem', ToyCannon1D0D2D, ...
+    'Rcoeff', [], ...
     'RandomiseProblem', false, ...
     'GP', struct, ... %user may override this with initial samples, etc
     ...
@@ -99,6 +100,9 @@ problem = params.problem;
 params.problem = struct; %clear so dont have to pass in to parfor later
 if params.RandomiseProblem
     problem.Randomise();
+end
+if ~isempty(params.Rcoeff)
+    problem.SetRcoeff(params.Rcoeff);
 end
 
 params.xmin = [problem.st_bounds(:,1)' problem.se_bounds(:,1)' problem.theta_bounds(:,1)'];

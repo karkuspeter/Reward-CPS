@@ -135,6 +135,11 @@ classdef ToyCannonBase < ProblemInterface
             obj.SetHill(obj.GetRandomHill(varargin{:}));
         end
         
+        function obj = SetRcoeff(obj, rcoeff)
+            obj.toycannon.r_func = @(a,v,s,hillats,xres,yres)...
+                (4 - rcoeff(1)*(xres-s).^2 - rcoeff(2).*v.^2 - rcoeff(3)*a.^2);
+        end
+        
     end
     
 end
