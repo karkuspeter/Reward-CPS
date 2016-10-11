@@ -5,8 +5,12 @@ function [ theta, val_at_theta ] = ACESpolicy(f, theta_bounds)
      [minval1,xatmin1,hist] = Direct(struct('f', f), theta_bounds, struct('showits', 0));
     
     % refine by BFGS
-    [xatmin2, minval2] = fminunc(f, xatmin1, optimoptions('fminunc','Algorithm','quasi-newton', 'Display', 'none'));
-
+    try
+        [xatmin2, minval2] = fminunc(f, xatmin1, optimoptions('fminunc','Algorithm','quasi-newton', 'Display', 'none'));
+    catch e
+        xatmin2 = xatmin1; 
+        minval2 = minval1;
+    end
     if any(xatmin2<theta_bounds(:,1)) || any(xatmin2>theta_bounds(:,2))
         %disp('warning: out of bounds');
         [xatmin2, minval2] = fmincon(f, xatmin1, [], [], [], [], theta_bounds(:,1), theta_bounds(:,2), [], optimoptions('fmincon', 'Display', 'none'));
