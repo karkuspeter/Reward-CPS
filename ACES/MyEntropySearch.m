@@ -910,12 +910,14 @@ stats.last_R_mean = linstat.R_mean(end);
 stats.lastGP = GP;
 
 if params.ReturnOptimal
-    r_opt = problem.get_optimal_r(params.Neval);
+    [r_opt, r_worst] = problem.get_optimal_r(params.Neval);
     while max(size(r_opt)) > 1
         r_opt = mean(r_opt);
+        r_worst = mean(r_worst);
     end
     stats.R_opt = r_opt;
-    linstat.R_mean = linstat.R_mean/r_opt;
+    stats.R_worst = r_worst;
+    linstat.R_mean = (linstat.R_mean - r_worst)/(r_opt-r_worst);
     
 end
 

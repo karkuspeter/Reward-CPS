@@ -137,16 +137,44 @@ classdef ToyCannonBase < ProblemInterface
         
         function obj = SetRcoeff(obj, rcoeff)
             if length(rcoeff) == 3
-                obj.toycannon.r_func = @(a,v,s,hillats,xres,yres)...
-                (4 - rcoeff(1)*(xres-s).^2 - rcoeff(2).*v.^2 - rcoeff(3)*a.^2);
-            elseif length(rcoeff) == 6
+                rcoeff(4:6) = 1;
+            end
+            if length(rcoeff) == 6
                 obj.toycannon.r_func = @(a,v,s,hillats,xres,yres)...
                 (4 - rcoeff(1)*((xres-s).^2).^rcoeff(4)...
                 - rcoeff(2).*(v.^2).^rcoeff(5) ...
                 - rcoeff(3)*(a.^2).^rcoeff(6));
+            
+%                 % original bounds
+%                 %obj.theta_bounds = [0.01, pi/2-0.2; 0.1, 3];
+%                 %obj.st_bounds = [1, 11];
+%                 minval = test_func(0.01, 0.1, 1, 0, 1, 0); %should be bit over zero
+%                 maxval = test_func(pi/2-0.2, 3, 11, 
+%             
+%                 obj.toycannon.r_func = @(a,v,s,hillats,xres,yres)(...
+%                     offset + scaler*(...
+%                     - rcoeff(1)*((xres-s).^2).^rcoeff(4)...
+%                 - rcoeff(2).*(v.^2).^rcoeff(5) ...
+%                 - rcoeff(3)*(a.^2).^rcoeff(6)...
+%                     ));
             else
                 disp('Error: not supported coefficient vector\n')
             end
+        end
+        
+        function [r_opt, r_worse] = get_optimal_r(obj, Neval)
+            evalgrid = evalgridfun(...
+                [obj.st_bounds(:,1); obj.se_bounds(:,1); obj.theta_bounds(:,1)]', ...
+                [obj.st_bounds(:,2); obj.se_bounds(:,2); obj.theta_bounds(:,2)]', ...
+                Neval);
+            val_full = arrayfun(@(varargin)(obj.sim_eval_func([varargin{:}])), evalgrid{:}); % this is a D dim array
+            r_opt = val_full;
+            r_worse = val_full;
+            for i_th=size(obj.st_bounds,1)+size(obj.se_bounds,1)+1:ndims(val_full)
+                r_opt = min(r_opt, [], i_th);
+                r_worse = mean(r_worse, i_th);
+            end
+            
         end
         
     end
