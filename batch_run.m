@@ -3,8 +3,8 @@ init
 catch ME
     disp(ME.identifier);
 end
-
-isdirect = true;
+%%
+isdirect = false;
 setting = struct('problem', ToyCannon0D1D2D, 'kappa', 0.5, 'Rcoeff', [1 1 1 0.5 1 1]);  
 direct_settings = setting;
 setting = struct('problem', ToyCannon0D1D2D, 'kappa', 0.5, 'Rcoeff', [1 1 1 1 1 1]);  
@@ -13,34 +13,24 @@ setting = struct('problem', ToyCannon0D1D2D, 'kappa', 0.5, 'Rcoeff', [1 3 1 1 1 
 direct_settings = [direct_settings; setting];
 setting = struct('problem', ToyCannon0D1D2D, 'kappa', 0.5, 'Rcoeff', [1 1 3 1 1 1]);  
 direct_settings = [direct_settings; setting];
-setting = struct('problem', ToyCannon1D0D2D, 'kappa', 1, 'Rcoeff', [1 1 1 0.5 1 1]);  
-direct_settings = [direct_settings; setting];
-setting = struct('problem', ToyCannon1D0D2D, 'kappa', 1, 'Rcoeff', [1 1 1 1 1 1]);  
-direct_settings = [direct_settings; setting];
-setting = struct('problem', ToyCannon1D0D2D, 'kappa', 1, 'Rcoeff', [1 3 1 1 1 1]);  
-direct_settings = [direct_settings; setting];
-setting = struct('problem', ToyCannon1D0D2D, 'kappa', 1, 'Rcoeff', [1 1 3 1 1 1]);  
-direct_settings = [direct_settings; setting];
+% setting = struct('problem', ToyCannon1D0D2D, 'kappa', 1, 'Rcoeff', [1 1 1 0.5 1 1]);  
+% direct_settings = [direct_settings; setting];
 
 hyper_params = struct(...
-    'problem', '{ToyCannon1D0D2D}', ...
-    'Ny', '{10, 20}', ... %how many samples to predict pmin given a new x
-    'Ntrial_st', '{10, 20}', ...  %representers for st space, can be number or vector
-    'Nn', '{4, 8}', ...  % only the neares Nn out of Ntrial_se will be evaluated for a context se
-    'Nb', '{20, 40}', ... %number of representers for p_min over theta space generated with Thompson sampling
-    'Algorithm', '{1}' ... %);
+    'problem', '{ToyCannon2D0D3D, ToyCannon0D2D3D}', ...
+    'Algorithm', '{4}' ... %);
     );
 common_params = struct('output_off', 1, ...
-    'Niter', 35, ...
+    'Niter', 100, ...
     'RandomiseProblem', true, ...
-    'InitialSamples', 9, ...
+    'InitialSamples', 19, ...
     'Neval', [50 20 20 20 20 20 20 20 20 20 20 20 20], ...
     ...%'sigmaM0', 1.45^2, ...
     ...%'sigmaF0', 0.2,...  % how much inputs are correlated -
     ...%'sigma0', sqrt(0.003), ... %how noisy my observations are, ...
-    'OptimisticMean', -1, ... %lowest possible value (will shift y values)
+    'OptimisticMean', 0, ... %lowest possible value (will shift y values)
     'EvalModulo', 5);
-repeat_setting = 20;
+repeat_setting = 25;
 fix_seeds = true;
 
 % create a list of all permutations    
