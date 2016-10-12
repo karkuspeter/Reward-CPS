@@ -113,53 +113,15 @@ classdef ToyCannonBase < ProblemInterface
                 GPnew.cK             = robustchol(GPnew.K);
             end
         end
-        
-        function obj = SetHill(obj, hill)
-            obj.toycannon.hill = hill;
-            obj.toycannon.y = obj.toycannon.HillValue(obj.toycannon.x);
-        end
-        
-        function hill = GetRandomHill(obj, hill_count)
-            %s_bounds = obj.toycannon.s_bounds;
-            if nargin < 2
-                hill_count = obj.toycannon.hill_count;
-            end
-            % h * exp(-(x-c).^2/scale)
-            c = samplerange(2, 10, hill_count)'; % pos of hill
-            h = samplerange(0.1, 0.5, hill_count)'; % height
-            scale = samplerange(0.05, 2, hill_count)'; % width, variance of gaussian
-            hill = struct('c', c, 'h', h, 'scale', scale);    
-        end
+
         
         function obj = Randomise(obj, varargin)
-            obj.SetHill(obj.GetRandomHill(varargin{:}));
+            %input: number of hills or goes to default
+            obj.toycannon.Randomise(varargin{:});
         end
         
         function obj = SetRcoeff(obj, rcoeff)
-            if length(rcoeff) == 3
-                rcoeff(4:6) = 1;
-            end
-            if length(rcoeff) == 6
-                obj.toycannon.r_func = @(a,v,s,hillats,xres,yres)...
-                (4 - rcoeff(1)*((xres-s).^2).^rcoeff(4)...
-                - rcoeff(2).*(v.^2).^rcoeff(5) ...
-                - rcoeff(3)*(a.^2).^rcoeff(6));
-            
-%                 % original bounds
-%                 %obj.theta_bounds = [0.01, pi/2-0.2; 0.1, 3];
-%                 %obj.st_bounds = [1, 11];
-%                 minval = test_func(0.01, 0.1, 1, 0, 1, 0); %should be bit over zero
-%                 maxval = test_func(pi/2-0.2, 3, 11, 
-%             
-%                 obj.toycannon.r_func = @(a,v,s,hillats,xres,yres)(...
-%                     offset + scaler*(...
-%                     - rcoeff(1)*((xres-s).^2).^rcoeff(4)...
-%                 - rcoeff(2).*(v.^2).^rcoeff(5) ...
-%                 - rcoeff(3)*(a.^2).^rcoeff(6)...
-%                     ));
-            else
-                disp('Error: not supported coefficient vector\n')
-            end
+            obj.toycannon.SetRcoeff(rcoeff);
         end
         
         function [r_opt, r_worse] = get_optimal_r(obj, Neval)
