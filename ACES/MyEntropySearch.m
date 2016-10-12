@@ -36,19 +36,19 @@ function [ stats, linstat, params ] = MyEntropySearch(input_params)
 %in.f            = @(x) f(x) % handle to objective function
 
 params = struct(...
-    'problem', ToyCannon1D0D2D, ...
+    'problem', ToyCannon0D2D3D, ...
     'Rcoeff', [], ...
-    'RandomiseProblem', false, ...
+    'RandomiseProblem', true, ...
     'GP', struct, ... %user may override this with initial samples, etc
     ...
     'S', 1000, ... %how many samples to take from GP posterior to estimate pmin
     'Ny', 10, ... %how many samples to predict pmin given a new x
-    'Ntrial_st', 20, ...  %representers for st space, can be number or vector
+    'Ntrial_st', 100, ...  %representers for st space, can be number or vector
     'Ntrial_se', 100, ... %representers for se space, can be number or vector
     'Nn', 8, ...  % only the neares Nn out of Ntrial_se will be evaluated for a context se
-    'Nb', 20, ... %number of representers for p_min over theta space generated with Thompson sampling
+    'Nb', 40, ... %number of representers for p_min over theta space generated with Thompson sampling
     'Nbpool', 500, ... %randomply chosen theta value pool for Thompson sampling
-    'Neval', [50, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20], ... %evaluation points over contexts. Theta space will be used computing optimal values
+    'Neval', [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20], ... %evaluation points over contexts. Theta space will be used computing optimal values
     'DirectEvals1', 100, ...  % number of maximum function evaluations for DIRECT search
     'DirectEvals2', 100, ...
     'DirectIters1', 5, ...  % number of maximum iterations for DIRECT search
@@ -68,15 +68,15 @@ params = struct(...
     ...
     'LearnHypers', false, ...
     'HyperPrior',@SEGammaHyperPosterior,... %for learning hyperparameters
-    'Niter', 82, ...
+    'Niter', 83, ...
     'InitialSamples', 80, ...  %minimum 1
-    'EvalModulo', 5, ...
+    'EvalModulo', 1, ...
     'EvalAllTheta', 0, ...
     'ReturnOptimal', 1, ... %computes optimal values and put in return struct
     'ConvergedFunc', @()(false), ... %this will be called at end of iteration
     'output_off', 0);
 
-PlotModulo = struct('ACES', 10, 'pmin', 10, 'policy', 10);
+PlotModulo = struct('ACES', 10, 'pmin', 10, 'policy', 1);
 
 if (exist('input_params'))
     params = ProcessParams(params, input_params);
@@ -110,7 +110,7 @@ params.xmax = [problem.st_bounds(:,2)' problem.se_bounds(:,2)' problem.theta_bou
 params.D = size(params.xmax,2); % dimensionality of inputs (search domain)
 params.Neval = params.Neval(1:params.D);
 
-plot_x = (params.xmax + params.xmin)/2; %this will be used when not plotting specific dimension
+plot_x = (params.xmax - params.xmin)*0.75 + params.xmin; %this will be used when not plotting specific dimension
 
 % dimensionality helper variables
 D = params.D;
@@ -120,10 +120,6 @@ params.st_dim = st_dim;
 params.se_dim = se_dim;
 s_dim = params.st_dim + params.se_dim;
 th_dim = D-s_dim;
-if s_dim ~= 1
-    disp('Error: only 1d context supported');
-    return;
-end
 sti = 1:st_dim;
 sei = st_dim+1:st_dim+se_dim;
 thi = s_dim+1:D;
@@ -536,8 +532,8 @@ while ~converged && (numiter < params.Niter)
     end
     
     % add random context if algorithm 2, 4, or 5
-    xatmin1 = [context(sinvsei); xatmin1];
-    xatmin2 = [context(sinvsei); xatmin2];
+    xatmin1 = [context(sinvsei)'; xatmin1];
+    xatmin2 = [context(sinvsei)'; xatmin2];
     if ~params.output_off
         xatmin2
     end
@@ -731,10 +727,23 @@ while ~converged && (numiter < params.Niter)
         if ~params.output_off
             fprintf('evaluate over contexts\n')
         end
-        eval_st_vect = evalvectfun(params.xmin(sti), params.xmax(sti), params.Neval(sti));
-        eval_se_vect = evalvectfun(params.xmin(sei), params.xmax(sei), params.Neval(sei));
+
+        eval_st_vect = zeros(prod(params.Neval(sti)),st_dim);
+        eval_se_vect = zeros(prod(params.Neval(sei)),se_dim);
+
+        %eval_st_vect = evalvectfun(params.xmin(sti), params.xmax(sti), params.Neval(sti));
+        s_cell = evalgridfun(params.xmin(sti), params.xmax(sti), params.Neval(sti));
+        for i=1:st_dim
+            eval_st_vect(:,i) = s_cell{i}(:)';
+        end
+ 
+        %eval_se_vect = evalvectfun(params.xmin(sei), params.xmax(sei), params.Neval(sei));
+        s_cell = evalgridfun(params.xmin(sei), params.xmax(sei), params.Neval(sei));
+        for i=1:se_dim
+            eval_se_vect(:,i) = s_cell{i}(:)';
+        end
         %s_cell = evalgridfun(xmin([sti sei]), xmax([sti sei]), params.Neval([sti sei]));
-        
+
         k=1;
         for i=1:size(eval_st_vect,1)
             GPrel = problem.MapGP(GP, eval_st_vect(i,:), params.LearnHypers);
@@ -765,7 +774,7 @@ while ~converged && (numiter < params.Niter)
     %% plot current theta policy
     % plot on real values
     if PlotModulo.policy && ~mod(numiter, PlotModulo.policy)
-        plotgrid = evalgridfun(params.xmin(end-1:end), params.xmax(end-1:end), [100 100]);
+        plotgrid = evalgridfun(params.xmin(end-1:end), params.xmax(end-1:end), [25 25]);
         real_val = arrayfun(@(varargin)(problem.sim_plot_func([plot_x(1:end-2) varargin{:}])), plotgrid{:});
         
         figure
