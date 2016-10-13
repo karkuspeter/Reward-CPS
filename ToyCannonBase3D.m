@@ -16,7 +16,7 @@ classdef ToyCannonBase3D < ToyCannonBase
         
         function r = r_func(obj, context, theta, outcome)
             %a_vert, a_hor, v, s1, s2, hillats, xres1, xres2, yres
-           r = (obj.toycannon.r_func(theta(:,1), theta(:,2), theta(:,3), context(:,1), context(:,2), outcome(:,1), outcome(:,2), outcome(:,3), outcome(:,4)) );
+           r = (obj.toycannon.r_func(theta(:,1), theta(:,2), theta(:,3), context(:,1)*10, context(:,2)*10, outcome(:,1), outcome(:,2), outcome(:,3), outcome(:,4)) );
         end
         
         function [r, result] = sim_func(obj, x)
