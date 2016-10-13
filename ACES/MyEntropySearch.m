@@ -168,7 +168,7 @@ end
 
 GP.invL = inv(diag(exp(GP.hyp.cov(1:end-1)))); %inverse of length scales
 GP.K   = k_matrix(GP,GP.x) + diag(GP_noise_var(GP,GP.y));
-GP.cK  = chol(GP.K);
+GP.cK  = robustchol(GP.K);
 
 GP.hyp_initial = GP.hyp;
 
@@ -693,7 +693,7 @@ while ~converged && (numiter < params.Niter)
     GP.obs           = [GP.obs; obsp];
     %GP.dy             = [GP.dy; dyp];
     GP.K              = k_matrix(GP,GP.x) + diag(GP_noise_var(GP,GP.y));
-    GP.cK             = chol(GP.K);
+    GP.cK             = robustchol(GP.K);
     
     % helpers for later plots: include st for GP samples (only se and th)
     GP_full_x = repmat(plot_x, size(GP.x,1), 1);
