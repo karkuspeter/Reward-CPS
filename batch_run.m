@@ -4,15 +4,13 @@ catch ME
     disp(ME.identifier);
 end
 %%
-isdirect = false;
-setting = struct('problem', ToyCannon0D1D2D, 'kappa', 0.5, 'Rcoeff', [1 1 1 0.5 1 1]);  
+isdirect = true;
+setting = struct('problem', ToyCannon0D2D3D, 'kappa', 0.5);  
 direct_settings = setting;
-setting = struct('problem', ToyCannon0D1D2D, 'kappa', 0.5, 'Rcoeff', [1 1 1 1 1 1]);  
+setting = struct('problem', ToyCannon2D0D3D, 'kappa', 1);  
 direct_settings = [direct_settings; setting];
-setting = struct('problem', ToyCannon0D1D2D, 'kappa', 0.5, 'Rcoeff', [1 3 1 1 1 1]);  
-direct_settings = [direct_settings; setting];
-setting = struct('problem', ToyCannon0D1D2D, 'kappa', 0.5, 'Rcoeff', [1 1 3 1 1 1]);  
-direct_settings = [direct_settings; setting];
+%setting = struct('problem', ToyCannon0D1D2D, 'kappa', 0.5, 'Rcoeff', [1 1 3 1 1 1]);  
+%direct_settings = [direct_settings; setting];
 % setting = struct('problem', ToyCannon1D0D2D, 'kappa', 1, 'Rcoeff', [1 1 1 0.5 1 1]);  
 % direct_settings = [direct_settings; setting];
 
@@ -21,16 +19,17 @@ hyper_params = struct(...
     'Algorithm', '{4}' ... %);
     );
 common_params = struct('output_off', 1, ...
+    'Algorithm', 4, ... %);
     'Niter', 100, ...
     'RandomiseProblem', true, ...
     'InitialSamples', 19, ...
     'Neval', [10 10 20 20 20 20 20 20 20 20 20 20 20], ...
-    ...%'sigmaM0', 1.45^2, ...
-    ...%'sigmaF0', 0.2,...  % how much inputs are correlated -
+    'sigmaM0', 1.4, ...
+    'sigmaF0', 2,...  % how much inputs are correlated -    
     ...%'sigma0', sqrt(0.003), ... %how noisy my observations are, ...
     'OptimisticMean', 0, ... %lowest possible value (will shift y values)
-    'EvalModulo', 5);
-repeat_setting = 25;
+    'EvalModulo', 10);
+repeat_setting = 20;
 fix_seeds = true;
 
 % create a list of all permutations    
