@@ -50,7 +50,7 @@ for e = 1:episodes
     
 	
 	S = Snew;
-	r = rnew;
+	r = rnew+3;
     
     ixBad = find(isnan(r));
     ixGood = setdiff(1:length(r), ixBad);
@@ -71,7 +71,7 @@ for e = 1:episodes
     
     try % There might be some numerical problems
         etatheta_prev = etatheta;
-        etatheta = fmincon(objfun, etatheta(:), diag([-1; ones(3, 1)]), [-.0001; Inf; Inf; Inf], [], [], [], [], [], options);
+        etatheta = fmincon(objfun, etatheta(:), diag([-1; ones(1+2*dimContext, 1)]), [-.0001; Inf*ones(1+2*dimContext,1)], [], [], [], [], [], options);
         if isnan(etatheta)
             disp('rewards')
             r
@@ -109,7 +109,6 @@ for e = 1:episodes
 
     
     if any(isnan(a))
-        
         
         a = aprev;
         A = Aprev;

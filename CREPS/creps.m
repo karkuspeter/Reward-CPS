@@ -6,12 +6,14 @@ function [ stats, linstat, params ] = creps(input_params)
 % for st context generate M samples and reweight
 
 params = struct(...
-    'problem', ToyCannon1D0D2D, ...
-    'Neval', [20, 20, 20], ... %evaluation points over contexts
-    'Algorithm', 3, ...   % 1 FCREPS, 2 CREPS, 3 FCREPS with myreps
+    'problem', ToyCannon0D2D3D, ...
+    'Rcoeff', [], ...
+    'RandomiseProblem', true, ...
+    'Neval', [6 6 30 100 30 20, 20, 20, 20], ... %evaluation points over contexts
+    'Algorithm', 2, ...   % 1 FCREPS, 2 CREPS, 3 FCREPS with myreps
     'Nart', 2, ...     %number of artificial st samples for FCREPS
     'Niter', 1100, ...  %number of interactions with world. Episodes = Niter/Nsamples;
-    'Nsamples', 10, ... %number of samples obtained from system at each episode
+    'Nsamples', 20, ... %number of samples obtained from system at each episode
     'Nold', 0, ... %use samples from Nold previous episodes
     'epsilon', 1, ... %epsilon for REPS (entropy bound, should be around 1)
 	'eta', 0.001, ...100, ... %eta for REPS
@@ -28,6 +30,13 @@ end
 
 problem = params.problem;
 params.problem = struct; %clear so dont have to pass in to parfor later
+if params.RandomiseProblem
+    problem.Randomise();
+end
+if ~isempty(params.Rcoeff)
+    problem.SetRcoeff(params.Rcoeff);
+end
+problem.se_bounds(2, :) = problem.se_bounds(2, :)/4;
 
 params.xmin = [problem.st_bounds(:,1)' problem.se_bounds(:,1)' problem.theta_bounds(:,1)'];
 params.xmax = [problem.st_bounds(:,2)' problem.se_bounds(:,2)' problem.theta_bounds(:,2)'];
@@ -64,14 +73,14 @@ if isempty(sigs)
     sigs = (problem.theta_bounds(:,2)-problem.theta_bounds(:,1))/2;
 end
 stFunc = @(n)(samplerange(...
-    problem.st_bounds(:,1), problem.st_bounds(:,2), n));
+    problem.st_bounds(:,1)', problem.st_bounds(:,2)', n));
 seFunc = @(n)(samplerange(...
-    problem.se_bounds(:,1), problem.se_bounds(:,2), n));
+    problem.se_bounds(:,1)', problem.se_bounds(:,2)', n));
 contextFunc = @(n)([stFunc(n); seFunc(n)]);
 
 simFunc = @(s, theta)(problem.sim_eval_func([s, theta])); %keep bounds
 rewFunc = @(s, theta, obs)(problem.r_func(s, theta, obs));
-etatheta = [params.eta, 0.1*rand(1,2+size(problem.se_bounds,1)+size(problem.st_bounds,1))];
+etatheta = [params.eta, 0.1*rand(1,1+2*(size(problem.se_bounds,1)+size(problem.st_bounds,1)))]';
 
 % execute REPS
 if (params.Algorithm == 1 || params.Algorithm == 3)
@@ -95,7 +104,12 @@ for i=params.EvalModulo:params.EvalModulo:size(hist.a,1)
     theta_vec = zeros(prod(params.Neval(1:s_dim)),th_dim);
     val_vec = zeros(size(theta_vec,1),1);
     
-    eval_s_vect = evalvectfun(params.xmin(1:s_dim), params.xmax(1:s_dim), params.Neval(1:s_dim));
+    %eval_s_vect = evalvectfun(params.xmin(1:s_dim), params.xmax(1:s_dim), params.Neval(1:s_dim));
+    eval_s_vect = zeros(prod(params.Neval(1:s_dim)),s_dim);
+    s_cell = evalgridfun(params.xmin(1:s_dim), params.xmax(1:s_dim), params.Neval(1:s_dim));
+    for j=1:s_dim
+        eval_s_vect(:,j) = s_cell{j}(:)';
+    end
     
     for j=1:size(eval_s_vect,1)
         theta = a + A*[eval_s_vect(j,:)'];
@@ -116,6 +130,17 @@ for i=params.EvalModulo:params.EvalModulo:size(hist.a,1)
     %TODO use appropriate R naming, these are arbitrary
 end
 
+if params.ReturnOptimal
+    [r_opt, r_worst] = problem.get_optimal_r(params.Neval);
+    while max(size(r_opt)) > 1
+        r_opt = mean(r_opt);
+        r_worst = mean(r_worst);
+    end
+    stats.R_opt = r_opt;
+    stats.R_worst = r_worst;
+    linstat.R_mean = (linstat.R_mean - r_worst)/(r_opt-r_worst);
+    
+end
 
 stats.last_R_mean = linstat.R_mean(end);
 
