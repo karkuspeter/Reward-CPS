@@ -54,11 +54,11 @@ params = struct(...
     'DirectIters1', 5, ...  % number of maximum iterations for DIRECT search
     'DirectIters2', 5, ...
     ... % GP parameters. only used if GP is not provided. covarianve values
-    'sigmaM0', 0.4, ... %[0.01; 0.01],... % lengthscale (std, not cov), how much inputs should be similar in that dim.
+    'sigmaM0', [], ... %[0.01; 0.01],... % lengthscale (std, not cov), how much inputs should be similar in that dim.
     ...               % i.e. how far inputs should influence each other
     ...               % can be single value or vector for each theta dim
-    'sigmaF0', 1.5, ... %0.8,...  % how much inputs are correlated - (std, not cov)
-    'sigma0', sqrt(0.003), ... % noise level on signals (std, not cov);
+    'sigmaF0', [], ... %0.8,...  % how much inputs are correlated - (std, not cov)
+    'sigma0', [], ... % noise level on signals (std, not cov);
     'Normalize', 0, ... %normalize y values: offse
     'OptimisticMean', 0, ... %lowest possible value (will shift y values)
     ... %TODO these are not normalized!
@@ -103,6 +103,17 @@ if params.RandomiseProblem
 end
 if ~isempty(params.Rcoeff)
     problem.SetRcoeff(params.Rcoeff);
+end
+
+% set problem specific default GP hyperparams
+if isempty(params.sigmaM0) 
+    params.sigmaM0 = problem.def_sigmaM0;
+end
+if isempty(params.sigmaF0) 
+    params.sigmaF0 = problem.def_sigmaF0;
+end
+if isempty(params.sigma0) 
+    params.sigma0 = problem.def_sigma0;
 end
 
 params.xmin = [problem.st_bounds(:,1)' problem.se_bounds(:,1)' problem.theta_bounds(:,1)'];

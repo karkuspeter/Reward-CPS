@@ -12,7 +12,10 @@ classdef ToyCannon0D2D3D < ToyCannon2D0D3D
             % switch se and st bounds
             se = obj.se_bounds;
             obj.se_bounds = obj.st_bounds;
-            obj.st_bounds = se;            
+            obj.st_bounds = se;  
+            
+            obj.def_sigmaM0 = [0.9469 0.9375 1.1843  1.7052 1.7179]';
+            obj.def_sigmaF0 = 1.9085;
         end        
     end
     

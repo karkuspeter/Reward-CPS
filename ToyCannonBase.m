@@ -3,6 +3,9 @@ classdef ToyCannonBase < ProblemInterface
     properties
         toycannon;
         grid_cache; % cache sim results for evaluation
+        def_sigmaM0; % lengthscale (std, not cov)
+        def_sigmaF0; % how much inputs are correlated - (std, not cov)
+        def_sigma0; % noise level on signals (std, not cov);
     end
     
     methods
@@ -12,7 +15,10 @@ classdef ToyCannonBase < ProblemInterface
             obj.theta_bounds = [0.01, pi/2-0.2; 0.1, 3];
             obj.st_bounds = [1, 11];
             obj.se_bounds = zeros(0,2);
-            
+
+            obj.def_sigmaM0 = 0.4;
+            obj.def_sigmaF0 = 1.5;
+            obj.def_sigma0 = 0.0548;
         end
         
         function r = r_func(obj, context, theta, outcome)
