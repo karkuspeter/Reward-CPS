@@ -2,7 +2,7 @@ function [ theta, val_at_theta ] = ACESpolicy(f, theta_bounds)
 %UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
 
-     [minval1,xatmin1,hist] = Direct(struct('f', f), theta_bounds, struct('showits', 0));
+     [minval1,xatmin1,hist] = Direct(struct('f', f), theta_bounds, struct('showits', 0, 'maxits', 15, 'maxevals', 200));
     
     % refine by BFGS
     try
@@ -17,7 +17,7 @@ function [ theta, val_at_theta ] = ACESpolicy(f, theta_bounds)
 
     end
     if minval2 > minval1
-        %disp('warning: ACESpolicy minval1 < minval2');
+        disp('warning: ACESpolicy minval1 < minval2');
     end
     
     theta = xatmin2;

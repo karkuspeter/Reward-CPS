@@ -36,7 +36,7 @@ function [ stats, linstat, params ] = MyEntropySearch(input_params)
 %in.f            = @(x) f(x) % handle to objective function
 
 params = struct(...
-    'problem', ToyCannon2D0D3D, ...
+    'problem', ToyBall, ...
     'Rcoeff', [], ...
     'RandomiseProblem', true, ...
     'GP', struct, ... %user may override this with initial samples, etc
@@ -48,11 +48,11 @@ params = struct(...
     'Nn', 8, ...  % only the neares Nn out of Ntrial_se will be evaluated for a context se
     'Nb', 40, ... %number of representers for p_min over theta space generated with Thompson sampling
     'Nbpool', 500, ... %randomply chosen theta value pool for Thompson sampling
-    'Neval', [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20], ... %evaluation points over contexts. Theta space will be used computing optimal values
+    'Neval', [8, 8, 20, 20, 20, 20, 20, 20, 20, 20, 20], ... %evaluation points over contexts. Theta space will be used computing optimal values
     'DirectEvals1', 100, ...  % number of maximum function evaluations for DIRECT search
     'DirectEvals2', 100, ...
-    'DirectIters1', 5, ...  % number of maximum iterations for DIRECT search
-    'DirectIters2', 5, ...
+    'DirectIters1', 10, ...  % number of maximum iterations for DIRECT search
+    'DirectIters2', 10, ...
     ... % GP parameters. only used if GP is not provided. covarianve values
     'sigmaM0', [], ... %[0.01; 0.01],... % lengthscale (std, not cov), how much inputs should be similar in that dim.
     ...               % i.e. how far inputs should influence each other
@@ -60,23 +60,23 @@ params = struct(...
     'sigmaF0', [], ... %0.8,...  % how much inputs are correlated - (std, not cov)
     'sigma0', [], ... % noise level on signals (std, not cov);
     'Normalize', 0, ... %normalize y values: offse
-    'OptimisticMean', 0, ... %lowest possible value (will shift y values)
+    'OptimisticMean', 0.5, ... %lowest possible value (will shift y values)
     ... %TODO these are not normalized!
     'Algorithm', 4, ...   % 1 ACES, 2, BOCPSEntropy, 3 Active-BOCPS, 4 BOCPS with direct+direct (set Ntrial_st=1) 5 BOCPS with that optimization method
     'Sampling', 'Thompson3', ...  %can be Thompson, Nothing, Thompson2 Thompson3 None
     'kappa', 0.5, ... % kappa for BOCPS acquisition function
     ...
-    'LearnHypers', true, ...
+    'LearnHypers', false, ...
     'HyperPrior',@SEGammaHyperPosterior,... %for learning hyperparameters
-    'Niter', 120, ...
-    'InitialSamples', 99, ...  %minimum 1
-    'EvalModulo', 5, ...
+    'Niter', 100, ...
+    'InitialSamples', 9, ...  %minimum 1
+    'EvalModulo', 100, ...
     'EvalAllTheta', 0, ...
-    'ReturnOptimal', 1, ... %computes optimal values and put in return struct
+    'ReturnOptimal', 0, ... %computes optimal values and put in return struct
     'ConvergedFunc', @()(false), ... %this will be called at end of iteration
     'output_off', 0);
 
-PlotModulo = struct('ACES', 0, 'pmin', 0, 'policy', 20);
+PlotModulo = struct('ACES', 0, 'pmin', 0, 'policy', 100, 'real', 100);
 
 if (exist('input_params'))
     params = ProcessParams(params, input_params);
@@ -121,7 +121,7 @@ params.xmax = [problem.st_bounds(:,2)' problem.se_bounds(:,2)' problem.theta_bou
 params.D = size(params.xmax,2); % dimensionality of inputs (search domain)
 params.Neval = params.Neval(1:params.D);
 
-plot_x = (params.xmax - params.xmin)*0.75 + params.xmin; %this will be used when not plotting specific dimension
+plot_x = (params.xmax - params.xmin)*1 + params.xmin; %this will be used when not plotting specific dimension
 
 % dimensionality helper variables
 D = params.D;
@@ -188,6 +188,8 @@ for i = 1:size(GP.hyp.cov,1)
    prior.cov{i} = {@priorTransform, @exp, @exp, @log, {@priorGauss, exp(GP.hyp_initial.cov(i)), exp(GP.hyp_initial.cov(i))/4}};
 end
 prior.lik = {{@priorClamped}};
+prior.lik = {@priorTransform, @exp, @exp, @log, {@priorGauss, exp(GP.hyp_initial.lik), exp(GP.hyp_initial.lik)/4}};
+
 GP.inf = {@infPrior, @infExact, prior};
 
 % optimize hyper parameters if needed
@@ -767,7 +769,12 @@ while ~converged && (numiter < params.Niter)
                 k=k+1;
             end
         end
+        if (~params.output_off && ~mod(numiter, PlotModulo.real))
+            problem.PrintOn=true;
+        end
         val_vec = problem.sim_eval_func([s_vec theta_vec]);
+        problem.PrintOn=false;
+
         
         linstat.evaluated(numiter,:) = 1;
         if ~params.output_off
@@ -836,7 +843,9 @@ while ~converged && (numiter < params.Niter)
         figure
         mesh(plotgrid{1}, plotgrid{2}, full_m);
         hold on;
-        scatter3(GP_full_x(:,end-1), GP_full_x(:,end), problem.sim_plot_func(GP_full_x), 'ro');
+        scatter3(GPrel.x(:,end-1), GPrel.x(:,end), GPrel.y, 'ro');
+
+        %scatter3(GP_full_x(:,end-1), GP_full_x(:,end), problem.sim_plot_func(GP_full_x), 'ro');
         full_vec = [s_vec theta_vec];
         scatter3(full_vec(:,end-1), full_vec(:,end), curr_m, 'y*');
         % %scatter3(out.FunEst(numiter,1), out.FunEst(numiter,2), in.f(out.FunEst(numiter,:)), 'r*');
