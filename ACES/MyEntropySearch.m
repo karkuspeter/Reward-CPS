@@ -773,6 +773,8 @@ while ~converged && (numiter < params.Niter)
         val_vec = problem.sim_eval_func([s_vec theta_vec]);
         problem.toycannon.PrintOn = false;
 
+        disp(numiter); disp(mean(val_vec));
+        
         linstat.evaluated(numiter,:) = 1;
         if ~params.output_off
             current_performance = mean(val_vec)
