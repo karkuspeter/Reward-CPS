@@ -9,7 +9,7 @@ classdef ToyCannonBase3D < ToyCannonBase
 
             obj.theta_bounds = [0.01, pi/2-0.2; ...
                                 0, 2*pi;...
-                                0.1, 3];
+                                0.1, 5];
             obj.st_bounds = [-1.1, 1.1; -1.1, 1.1];
             obj.se_bounds = zeros(0,2);
         end

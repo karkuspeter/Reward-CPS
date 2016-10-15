@@ -43,12 +43,12 @@ params = struct(...
     ...
     'S', 1000, ... %how many samples to take from GP posterior to estimate pmin
     'Ny', 10, ... %how many samples to predict pmin given a new x
-    'Ntrial_st', 100, ...  %representers for st space, can be number or vector
-    'Ntrial_se', 100, ... %representers for se space, can be number or vector
+    'Ntrial_st', 10, ...  %representers for st space, can be number or vector
+    'Ntrial_se', 40, ... %representers for se space, can be number or vector
     'Nn', 8, ...  % only the neares Nn out of Ntrial_se will be evaluated for a context se
     'Nb', 40, ... %number of representers for p_min over theta space generated with Thompson sampling
     'Nbpool', 500, ... %randomply chosen theta value pool for Thompson sampling
-    'Neval', [20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20], ... %evaluation points over contexts. Theta space will be used computing optimal values
+    'Neval', [4, 4, 20, 20, 20, 20, 20, 20, 20, 20, 20], ... %evaluation points over contexts. Theta space will be used computing optimal values
     'DirectEvals1', 100, ...  % number of maximum function evaluations for DIRECT search
     'DirectEvals2', 100, ...
     'DirectIters1', 5, ...  % number of maximum iterations for DIRECT search
@@ -66,17 +66,17 @@ params = struct(...
     'Sampling', 'Thompson3', ...  %can be Thompson, Nothing, Thompson2 Thompson3 None
     'kappa', 0.5, ... % kappa for BOCPS acquisition function
     ...
-    'LearnHypers', true, ...
+    'LearnHypers', false, ...
     'HyperPrior',@SEGammaHyperPosterior,... %for learning hyperparameters
-    'Niter', 120, ...
-    'InitialSamples', 99, ...  %minimum 1
-    'EvalModulo', 5, ...
+    'Niter', 100, ...
+    'InitialSamples', 9, ...  %minimum 1
+    'EvalModulo', 50, ...
     'EvalAllTheta', 0, ...
     'ReturnOptimal', 1, ... %computes optimal values and put in return struct
     'ConvergedFunc', @()(false), ... %this will be called at end of iteration
     'output_off', 0);
 
-PlotModulo = struct('ACES', 0, 'pmin', 0, 'policy', 20);
+PlotModulo = struct('ACES', 0, 'pmin', 0, 'policy', 0);
 
 if (exist('input_params'))
     params = ProcessParams(params, input_params);
@@ -767,8 +767,12 @@ while ~converged && (numiter < params.Niter)
                 k=k+1;
             end
         end
+        if(~params.output_off)
+            problem.toycannon.PrintOn = true;
+        end
         val_vec = problem.sim_eval_func([s_vec theta_vec]);
-        
+        problem.toycannon.PrintOn = false;
+
         linstat.evaluated(numiter,:) = 1;
         if ~params.output_off
             current_performance = mean(val_vec)
