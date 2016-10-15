@@ -1,15 +1,15 @@
 %hyper_params = struct('Algorithm', [1,2]);
 hyper_params = struct(...
-    'problem', '{ToyCannon1D0D2D}', ...
-    'Algorithm', '{3}', ... %);
-    'Nart', '{1 10}', ...
+    'problem', '{ToyCannon0D2D3D}', ...
+    'Algorithm', '{2}', ... %);
+    'Nart', '{1}', ...
     'epsilon', '{1}', ... %epsilon for REPS (entropy bound, should be around 1)
-    'Nsamples', '{20, 40}' ... %number of samples obtained from system at each episode
+    'Nsamples', '{200}' ... %number of samples obtained from system at each episode
     );
 common_params = struct('output_off', 1, ...
-    'Niter', 500, ...
+    'Niter', 8000, ...
     'EvalModulo', 1);
-repeat_setting = 100;
+repeat_setting = 1;
 
 % create a list of all permutations     
 hp_list = [common_params]; % start with params for all executions
@@ -90,7 +90,7 @@ save(strcat('results/hyper-', datestr(now,'dd-mm-yyyy-HH-MM'), '.mat'));
 % show specific result
 figure
 indices = 1:numel(hp_list); %[4 5 9 10];%1:numel(hp_list);
-indices = [3 2];
+%indices = [3 2];
 labels = {};
 plots = {};
 for ind = indices
