@@ -43,10 +43,10 @@ params = struct(...
     ...
     'S', 1000, ... %how many samples to take from GP posterior to estimate pmin
     'Ny', 10, ... %how many samples to predict pmin given a new x
-    'Ntrial_st', 100, ...  %representers for st space, can be number or vector
-    'Ntrial_se', 100, ... %representers for se space, can be number or vector
+    'Ntrial_st', 20, ...  %representers for st space, can be number or vector
+    'Ntrial_se', 20, ... %representers for se space, can be number or vector
     'Nn', 8, ...  % only the neares Nn out of Ntrial_se will be evaluated for a context se
-    'Nb', 40, ... %number of representers for p_min over theta space generated with Thompson sampling
+    'Nb', 30, ... %number of representers for p_min over theta space generated with Thompson sampling
     'Nbpool', 500, ... %randomply chosen theta value pool for Thompson sampling
     'Neval', [8, 8, 20, 20, 20, 20, 20, 20, 20, 20, 20], ... %evaluation points over contexts. Theta space will be used computing optimal values
     'DirectEvals1', 100, ...  % number of maximum function evaluations for DIRECT search
@@ -62,13 +62,13 @@ params = struct(...
     'Normalize', 0, ... %normalize y values: offse
     'OptimisticMean', 0.5, ... %lowest possible value (will shift y values)
     ... %TODO these are not normalized!
-    'Algorithm', 4, ...   % 1 ACES, 2, BOCPSEntropy, 3 Active-BOCPS, 4 BOCPS with direct+direct (set Ntrial_st=1) 5 BOCPS with that optimization method
+    'Algorithm', 1, ...   % 1 ACES, 2, BOCPSEntropy, 3 Active-BOCPS, 4 BOCPS with direct+direct (set Ntrial_st=1) 5 BOCPS with that optimization method
     'Sampling', 'Thompson3', ...  %can be Thompson, Nothing, Thompson2 Thompson3 None
     'kappa', 0.5, ... % kappa for BOCPS acquisition function
     ...
     'LearnHypers', false, ...
     'HyperPrior',@SEGammaHyperPosterior,... %for learning hyperparameters
-    'Niter', 100, ...
+    'Niter', 40, ...
     'InitialSamples', 9, ...  %minimum 1
     'EvalModulo', 100, ...
     'EvalAllTheta', 0, ...
@@ -76,7 +76,7 @@ params = struct(...
     'ConvergedFunc', @()(false), ... %this will be called at end of iteration
     'output_off', 0);
 
-PlotModulo = struct('ACES', 0, 'pmin', 0, 'policy', 100, 'real', 100);
+PlotModulo = struct('ACES', 0, 'pmin', 0, 'policy', 0, 'real', 0);
 
 if (exist('input_params'))
     params = ProcessParams(params, input_params);
