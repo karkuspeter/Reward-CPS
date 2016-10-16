@@ -36,7 +36,7 @@ function [ stats, linstat, params ] = MyEntropySearch(input_params)
 %in.f            = @(x) f(x) % handle to objective function
 
 params = struct(...
-    'problem', ToyCannon0D2D3D, ...
+    'problem', ToyCannon2D0D3D, ...
     'Rcoeff', [], ...
     'RandomiseProblem', true, ...
     'GP', struct, ... %user may override this with initial samples, etc
@@ -46,7 +46,7 @@ params = struct(...
     'Ntrial_st', 10, ...  %representers for st space, can be number or vector
     'Ntrial_se', 20, ... %representers for se space, can be number or vector
     'Nn', 8, ...  % only the neares Nn out of Ntrial_se will be evaluated for a context se
-    'Nb', 100, ... %number of representers for p_min over theta space generated with Thompson sampling
+    'Nb', 40, ... %number of representers for p_min over theta space generated with Thompson sampling
     'Nbpool', 10000, ... %randomply chosen theta value pool for Thompson sampling
     'Neval', [4, 4, 20, 20, 20, 20, 20, 20, 20, 20, 20], ... %evaluation points over contexts. Theta space will be used computing optimal values
     'DirectEvals1', 100, ...  % number of maximum function evaluations for DIRECT search
@@ -63,13 +63,13 @@ params = struct(...
     'OptimisticMean', 0, ... %lowest possible value (will shift y values)
     ... %TODO these are not normalized!
     'Algorithm', 1, ...   % 1 ACES, 2, BOCPSEntropy, 3 Active-BOCPS, 4 BOCPS with direct+direct (set Ntrial_st=1) 5 BOCPS with that optimization method
-    'Sampling', 'T4', ...  %can be Thompson, Nothing, Thompson2 Thompson3 None
+    'Sampling', 'T5', ...  %can be Thompson, Nothing, Thompson2 Thompson3 None
     'kappa', 1, ... % kappa for BOCPS acquisition function
     ...
     'LearnHypers', false, ...
     'HyperPrior',@SEGammaHyperPosterior,... %for learning hyperparameters
     'Niter', 160, ...
-    'InitialSamples', 9, ...  %minimum 1
+    'InitialSamples', 140, ...  %minimum 1
     'EvalModulo', 10, ...
     'EvalAllTheta', 0, ...
     'ReturnOptimal', 0, ... %computes optimal values and put in return struct
@@ -280,7 +280,7 @@ while ~converged && (numiter < params.Niter)
         trials = repmat(permute(se_trials, [3 2 1]), size(pools,1), 1, 1);
         pools = repmat(pools, 1, 1, size(se_trials,1));
         pools = cat(2, trials, pools);
-        flatpool = reshape(pools, [], size(pools,2), 1);
+        flatpool = reshape(permute(pools,[1,3,2]), [], size(pools,2), 1);
         GPrel = GP_cell{i_st};
 
         ymeans = gp(GPrel.hyp, [], [], GPrel.covfunc, GPrel.likfunc, GPrel.x, GPrel.y, flatpool);
@@ -425,24 +425,56 @@ while ~converged && (numiter < params.Niter)
                     heights = heights / sum(heights);
                     scatter(zbnew(:,end), heights , 'b');
                 end
-            elseif strcmp(params.Sampling, 'T4')
+            elseif strcmp(params.Sampling, 'T5')
                 ymean = ymeans(:,:,i_se);
                 [~, imap] = sort(ymean);
-                y = ymean(imap(1:round(params.Nbpool/10)));
-                y = (y - min(y))/(max(max(y)-min(y),0.1))*1000 + 1;
-                logP = -log(y);
-                logP = logP - logsumexp(logP);
-                P = exp(logP);
+                imap = imap(1:round(params.Nbpool/10));
                 
-                % sample from logP without replacement
-                inds = datasample((1:size(P,1))',params.Nb,1,'Replace',false, 'Weights', P);
+                extpool = datasample(pools(imap, :, i_se), 200, 1, 'Replace', false);
 
+                logP = EstPmin(GP_cell{i_st}, extpool, 200*20, randn(size(extpool,1), 200*20));
+                P = exp(logP);
+                % sample from logP without replacement
+                inds = datasample((1:size(extpool,1))',params.Nb,1,'Replace',false, 'Weights', P);
                 % the probability that a zb was choosen is actually
                 % Multivariate Wallenius' noncentral hypergeometric distribution
                 % where: n=20; N=500; all mi = 1; x=1; wi = Pi;
                 
+                
                 % sort for easier debugging, not neccessary
                 %inds = sort(inds);
+                
+                zbnew = extpool(inds, :);
+                lw = logP(inds,:);  %log(u)
+                
+                lmb_vec(:,:,i_se, i_st) = lmb + lw; % + log(params.Nb);
+                zb_vec(:,:,i_se, i_st) = zbnew;
+                logP_vec(:,:,i_se, i_st) = EstPmin(GP_cell{i_st}, zbnew, params.S, randn(size(zbnew,1), params.S));  %joint_min(Mb_vec(:,:,i), Vb_vec(:,:,i), 1);
+
+                
+                if(false)
+                    figure
+                    scatter3(zbnew(:,end-2),zbnew(:,end-1),zbnew(:,end));                    
+                   figure
+                   plot(logP_vec(:,:,i_se, i_st))
+                                    %[~, inds] = sort(P, 'descend');
+                                    %inds = inds(1:params.Nb);
+                   disp('');
+
+                end
+                
+            elseif strcmp(params.Sampling, 'T4')
+                ymean = ymeans(:,:,i_se);
+                [~, imap] = sort(ymean);
+                imap = imap(1:round(params.Nbpool/10));
+                
+                y = ymean(imap);
+                y = (y - min(y))/(max(max(y)-min(y),0.1))*1000 + 1;
+                logP = -log(y);
+                logP = logP - logsumexp(logP);
+                P = exp(logP);
+
+                inds = datasample((1:size(P,1))',params.Nb,1,'Replace',false, 'Weights', P);
                 
                 zbnew = pools(imap(inds), :, i_se);
                 lw = logP(inds,:);  %log(u)
@@ -450,15 +482,19 @@ while ~converged && (numiter < params.Niter)
                 lmb_vec(:,:,i_se, i_st) = lmb + lw; % + log(params.Nb);
                 zb_vec(:,:,i_se, i_st) = zbnew;
                 logP_vec(:,:,i_se, i_st) = EstPmin(GP_cell{i_st}, zbnew, params.S, randn(size(zbnew,1), params.S));  %joint_min(Mb_vec(:,:,i), Vb_vec(:,:,i), 1);
-
-                if(false)
+                      
+                if(true)
                     figure
-                    scatter3(zbnew(:,end-2),zbnew(:,end-1),zbnew(:,end));
-                    disp('');
+                    scatter3(zbnew(:,end-2),zbnew(:,end-1),zbnew(:,end));                    
+                   figure
+                   plot(logP_vec(:,:,i_se, i_st))
                                     %[~, inds] = sort(P, 'descend');
                                     %inds = inds(1:params.Nb);
+                   disp('');
+
                 end
-                
+
+               
                 
             elseif strcmp(params.Sampling, 'None')
                 % do nothing
