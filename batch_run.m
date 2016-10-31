@@ -5,31 +5,23 @@ catch ME
 end
 %%
 isdirect = true;
-setting = struct('problem', ToyCannon0D2D3D, 'kappa', 0.5);  
+setting = struct('problem', ToyCannon2D0D3D, 'Algorithm',1, 'kappa', 1, 'Niter', 60);
 direct_settings = setting;
-setting = struct('problem', ToyCannon2D0D3D, 'kappa', 1);  
-direct_settings = [direct_settings; setting];
-%setting = struct('problem', ToyCannon0D1D2D, 'kappa', 0.5, 'Rcoeff', [1 1 3 1 1 1]);  
+%setting = struct('problem', ToyCannon1D0D2D, 'kappa', 2);
 %direct_settings = [direct_settings; setting];
-% setting = struct('problem', ToyCannon1D0D2D, 'kappa', 1, 'Rcoeff', [1 1 1 0.5 1 1]);  
-% direct_settings = [direct_settings; setting];
 
 hyper_params = struct(...
-    'problem', '{ToyCannon2D0D3D, ToyCannon0D2D3D}', ...
-    'Algorithm', '{4}' ... %);
-    );
+                      'problem', '{ToyCannon0D2D3D, ToyCannon2D0D3D}' ...
+                      );
+
 common_params = struct('output_off', 1, ...
-    'Algorithm', 4, ... %);
-    'Niter', 100, ...
-    'RandomiseProblem', true, ...
-    'InitialSamples', 19, ...
-    'Neval', [10 10 20 20 20 20 20 20 20 20 20 20 20], ...
-    'sigmaM0', 1.4, ...
-    'sigmaF0', 2,...  % how much inputs are correlated -    
-    ...%'sigma0', sqrt(0.003), ... %how noisy my observations are, ...
-    'OptimisticMean', 0, ... %lowest possible value (will shift y values)
-    'EvalModulo', 10);
-repeat_setting = 20;
+                       'RandomiseProblem', true, ...
+                       'ReturnOptimal', 0, ... %computes optimal values and put in return struct
+                       'InitialSamples', 9, ...
+                       'Neval', [8 8 20 20 20 20 20 20 20 20 20 20 20], ...
+                       'OptimisticMean', 0, ... %lowest possible value (will shift y values)
+                       'EvalModulo', 10);
+repeat_setting = 8;
 fix_seeds = true;
 
 % create a list of all permutations    
