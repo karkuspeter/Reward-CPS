@@ -6,5 +6,6 @@ addpath ../../TPROD;
 addpath ../../EntropySearch;
 addpath ./ACES;
 addpath ./CREPS;
+addpath ./ToyCannon;
 
 parpool('local');
