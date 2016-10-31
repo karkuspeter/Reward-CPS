@@ -109,8 +109,9 @@ classdef ToyCannonSimulator3D < handle
                 
                 %print
                 if(obj.PrintOn)
-                    hold on, plot3(traj(:,1), traj(:,2), traj(:,3), 'r--')
-                    hold on, scatter3(s1(i,:), s2(i,:), hillats, 'ko')
+                    hold on, plot3(traj(:,1), traj(:,2), traj(:,3), 'r--', 'LineWidth', 3)
+                    hold on, scatter3(s1(i,:), s2(i,:), hillats, 'k*')
+                    hold on, scatter3(0, 0, obj.cannon_h, 'MarkerFaceColor', 'k')                    
                 end
             end
         end
