@@ -24,7 +24,7 @@ set(h,'facealpha',.15)
 set(h,'EdgeColor','None')
 %set(h,'alphadata',.1)
 
-h = plot(x, func(y_mean), 'Color', linecolor, 'LineWidth', 2)
+h = plot(x, func(y_mean), 'Color', linecolor, 'LineWidth', 3)
 
 end
 

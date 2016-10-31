@@ -33,7 +33,8 @@ classdef ToyCannonSimulator3D < handle
             %obj.y = arrayfun(obj.HillValue, obj.x1, obj.x2);
             %obj.r_func = @(a_vert, a_hor, v, s1, s2, hillats, xres1, xres2, yres)...
             %    (-(xres1-s1).^2 -(xres2-s2).^2  - 1.*v.^2 - 3*a_vert.^2); %- 0.1*a.^2
-            obj.SetRcoeff([0, -0.02, 1, 1, 1, 3]);
+            %obj.SetRcoeff([0, -0.02, 1, 1, 1, 3]);
+            obj.SetRcoeff([0, -0.05, 1, 1, 0.1, 3 1 1 0.5 1]);
             obj.PrintOn = false;
         end
         
@@ -108,8 +109,9 @@ classdef ToyCannonSimulator3D < handle
                 
                 %print
                 if(obj.PrintOn)
-                    hold on, plot3(traj(:,1), traj(:,2), traj(:,3), 'r--')
-                    hold on, scatter3(s1(i,:), s2(i,:), hillats, 'ko')
+                    hold on, plot3(traj(:,1), traj(:,2), traj(:,3), 'r--', 'LineWidth', 3)
+                    hold on, scatter3(s1(i,:), s2(i,:), hillats, 'k*')
+                    hold on, scatter3(0, 0, obj.cannon_h, 'MarkerFaceColor', 'k')                    
                 end
             end
         end
